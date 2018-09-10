@@ -25,11 +25,15 @@ import java.util.{Optional, Properties}
 import com.uber.hoodie.DataSourceReadOptions._
 import com.uber.hoodie.DataSourceWriteOptions._
 import com.uber.hoodie.common.table.{HoodieTableConfig, HoodieTableMetaClient}
+import com.uber.hoodie.common.util.FSUtils
 import com.uber.hoodie.common.util.TypedProperties
 import com.uber.hoodie.config.HoodieWriteConfig
 import com.uber.hoodie.exception.HoodieException
 import com.uber.hoodie.hive.{HiveSyncConfig, HiveSyncTool}
 import org.apache.avro.generic.GenericRecord
+import org.apache.commons.configuration.PropertiesConfiguration
+import org.apache.hadoop.fs.FileSystem
+import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.fs.Path
 import org.apache.log4j.LogManager
 import org.apache.spark.api.java.JavaSparkContext

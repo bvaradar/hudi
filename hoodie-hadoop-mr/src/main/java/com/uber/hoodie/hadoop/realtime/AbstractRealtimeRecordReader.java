@@ -41,7 +41,6 @@ import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -211,7 +210,6 @@ public abstract class AbstractRealtimeRecordReader {
       return null;
       //return NullWritable.get();
     }
-    Writable[] wrapperWritable;
 
 
     Writable[] wrapperWritable;

@@ -60,8 +60,8 @@ public class HoodieLogFormatReader implements HoodieLogFormat.Reader {
   /**
    * Note : In lazy mode, clients must ensure close() should be called only after processing
    * all log-blocks as the underlying inputstream will be closed.
-   * TODO: We can introduce invalidate() API at HoodieLogBlock and this object can call invalidate on all returned log-blocks
-   * so that we check this scenario specifically in HoodieLogBlock
+   * TODO: We can introduce invalidate() API at HoodieLogBlock and this object can call invalidate on
+   * all returned log-blocks so that we check this scenario specifically in HoodieLogBlock
    */
   public void close() throws IOException {
 

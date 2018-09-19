@@ -503,6 +503,7 @@ public class TestAsyncCompaction extends TestHoodieClientBase {
   }
 
   protected HoodieTableType getTableType() {
+    // harmless change
     return HoodieTableType.MERGE_ON_READ;
   }
 }

@@ -18,6 +18,7 @@
 
 package com.uber.hoodie.hadoop;
 
+import com.uber.hoodie.common.util.collection.Pair;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;

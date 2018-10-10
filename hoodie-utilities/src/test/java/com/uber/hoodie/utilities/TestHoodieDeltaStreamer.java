@@ -31,14 +31,21 @@ import com.uber.hoodie.exception.DatasetNotFoundException;
 import com.uber.hoodie.utilities.deltastreamer.HoodieDeltaStreamer;
 import com.uber.hoodie.utilities.deltastreamer.HoodieDeltaStreamer.Operation;
 import com.uber.hoodie.utilities.sources.TestDataSource;
+import com.uber.hoodie.utilities.transform.SqlQueryBasedTransformer;
+import com.uber.hoodie.utilities.transform.Transformer;
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
+import org.apache.spark.sql.api.java.UDF4;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -59,12 +66,17 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
 
     // prepare the configs.
     UtilitiesTestBase.Helpers.copyToDFS("delta-streamer-config/base.properties", dfs, dfsBasePath + "/base.properties");
+    UtilitiesTestBase.Helpers.copyToDFS("delta-streamer-config/sql-transformer.properties", dfs,
+        dfsBasePath + "/sql-transformer.properties");
     UtilitiesTestBase.Helpers.copyToDFS("delta-streamer-config/source.avsc", dfs, dfsBasePath + "/source.avsc");
+    UtilitiesTestBase.Helpers.copyToDFS("delta-streamer-config/target.avsc", dfs, dfsBasePath + "/target.avsc");
+
     TypedProperties props = new TypedProperties();
-    props.setProperty("include", "base.properties");
+    props.setProperty("include", "sql-transformer.properties");
     props.setProperty("hoodie.datasource.write.recordkey.field", "_row_key");
     props.setProperty("hoodie.datasource.write.partitionpath.field", "not_there");
     props.setProperty("hoodie.deltastreamer.schemaprovider.source.schema.file", dfsBasePath + "/source.avsc");
+    props.setProperty("hoodie.deltastreamer.schemaprovider.target.schema.file", dfsBasePath + "/target.avsc");
     UtilitiesTestBase.Helpers.savePropsToDFS(props, dfs, dfsBasePath + "/test-source.properties");
   }
 
@@ -86,13 +98,17 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
   }
 
   static class TestHelpers {
-
     static HoodieDeltaStreamer.Config makeConfig(String basePath, Operation op) {
+      return makeConfig(basePath, op, TripsWithDistanceTransformer.class.getName());
+    }
+
+    static HoodieDeltaStreamer.Config makeConfig(String basePath, Operation op, String transformerClassName) {
       HoodieDeltaStreamer.Config cfg = new HoodieDeltaStreamer.Config();
       cfg.targetBasePath = basePath;
       cfg.targetTableName = "hoodie_trips";
       cfg.storageType = "COPY_ON_WRITE";
       cfg.sourceClassName = TestDataSource.class.getName();
+      cfg.transformerClassName = transformerClassName;
       cfg.operation = op;
       cfg.sourceOrderingField = "timestamp";
       cfg.propsFilePath = dfsBasePath + "/test-source.properties";
@@ -108,6 +124,20 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     static List<Row> countsPerCommit(String datasetPath, SQLContext sqlContext) {
       return sqlContext.read().format("com.uber.hoodie").load(datasetPath).groupBy("_hoodie_commit_time").count()
           .sort("_hoodie_commit_time").collectAsList();
+    }
+
+    static void assertDistanceCount(long expected, String datasetPath, SQLContext sqlContext) {
+      sqlContext.read().format("com.uber.hoodie").load(datasetPath).registerTempTable("tmp_trips");
+      long recordCount =
+          sqlContext.sparkSession().sql("select * from tmp_trips where haversine_distance is not NULL").count();
+      assertEquals(expected, recordCount);
+    }
+
+    static void assertDistanceCountWithExactValue(long expected, String datasetPath, SQLContext sqlContext) {
+      sqlContext.read().format("com.uber.hoodie").load(datasetPath).registerTempTable("tmp_trips");
+      long recordCount =
+          sqlContext.sparkSession().sql("select * from tmp_trips where haversine_distance = 1.0").count();
+      assertEquals(expected, recordCount);
     }
 
     static void assertCommitMetadata(String expected, String datasetPath, FileSystem fs, int totalCommits)
@@ -152,12 +182,14 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     HoodieDeltaStreamer.Config cfg = TestHelpers.makeConfig(datasetBasePath, Operation.BULK_INSERT);
     new HoodieDeltaStreamer(cfg, jsc).sync();
     TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
 
     // No new data => no commits.
     cfg.sourceLimit = 0;
     new HoodieDeltaStreamer(cfg, jsc).sync();
     TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
 
     // upsert() #1
@@ -165,6 +197,43 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     cfg.operation = Operation.UPSERT;
     new HoodieDeltaStreamer(cfg, jsc).sync();
     TestHelpers.assertRecordCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata("00001", datasetBasePath, dfs, 2);
+    List<Row> counts = TestHelpers.countsPerCommit(datasetBasePath + "/*/*.parquet", sqlContext);
+    assertEquals(2000, counts.get(0).getLong(1));
+  }
+
+  @Test
+  /**
+   * Using a SQL template to transform a source
+   */
+  public void testBulkInsertsAndUpsertsWithSQLBasedTransformer() throws Exception {
+    String datasetBasePath = dfsBasePath + "/test_dataset2";
+
+    // Initial bulk insert
+    HoodieDeltaStreamer.Config cfg = TestHelpers.makeConfig(datasetBasePath, Operation.BULK_INSERT,
+        SqlQueryBasedTransformer.class.getName());
+    new HoodieDeltaStreamer(cfg, jsc).sync();
+    TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCountWithExactValue(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
+
+    // No new data => no commits.
+    cfg.sourceLimit = 0;
+    new HoodieDeltaStreamer(cfg, jsc).sync();
+    TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCountWithExactValue(1000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
+
+    // upsert() #1
+    cfg.sourceLimit = 2000;
+    cfg.operation = Operation.UPSERT;
+    new HoodieDeltaStreamer(cfg, jsc).sync();
+    TestHelpers.assertRecordCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCountWithExactValue(2000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertCommitMetadata("00001", datasetBasePath, dfs, 2);
     List<Row> counts = TestHelpers.countsPerCommit(datasetBasePath + "/*/*.parquet", sqlContext);
     assertEquals(2000, counts.get(0).getLong(1));
@@ -191,5 +260,57 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     List<Row> counts = TestHelpers.countsPerCommit(datasetBasePath + "/*/*.parquet", sqlContext);
     assertEquals(1000, counts.get(0).getLong(1));
     assertEquals(1000, counts.get(1).getLong(1));
+  }
+
+  /**
+   * UDF to calculate Haversine distance
+   */
+  public static class DistanceUDF implements UDF4<Double, Double, Double, Double, Double> {
+
+    /**
+     *
+     * Taken from https://stackoverflow.com/questions/3694380/calculating-distance-between-two-points-using-latitude-
+     * longitude-what-am-i-doi
+     * Calculate distance between two points in latitude and longitude taking
+     * into account height difference. If you are not interested in height
+     * difference pass 0.0. Uses Haversine method as its base.
+     *
+     * lat1, lon1 Start point lat2, lon2 End point el1 Start altitude in meters
+     * el2 End altitude in meters
+     * @returns Distance in Meters
+     */
+    @Override
+    public Double call(Double lat1, Double lat2, Double lon1, Double lon2) {
+
+      final int R = 6371; // Radius of the earth
+
+      double latDistance = Math.toRadians(lat2 - lat1);
+      double lonDistance = Math.toRadians(lon2 - lon1);
+      double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+          + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+          * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+      double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      double distance = R * c * 1000; // convert to meters
+
+      double height = 0;
+
+      distance = Math.pow(distance, 2) + Math.pow(height, 2);
+
+      return Math.sqrt(distance);
+    }
+  }
+
+  /**
+   * Adds a new field "haversine_distance" to the row
+   */
+  public static class TripsWithDistanceTransformer implements Transformer {
+
+    @Override
+    public Dataset<Row> apply(JavaSparkContext jsc, Dataset<Row> rowDataset, TypedProperties properties) {
+      rowDataset.sqlContext().udf().register("distance_udf", new DistanceUDF(), DataTypes.DoubleType);
+      return rowDataset.withColumn("haversine_distance",
+          functions.callUDF("distance_udf", functions.col("begin_lat"),
+              functions.col("end_lat"), functions.col("begin_lon"), functions.col("end_lat")));
+    }
   }
 }

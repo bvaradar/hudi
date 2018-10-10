@@ -39,7 +39,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 /**
  * An implementation of {@link Source}, that emits test upserts.
  */
-public class TestDataSource extends Source {
+public class TestDataSource extends AvroSource {
 
   private static volatile Logger log = LogManager.getLogger(TestDataSource.class);
 

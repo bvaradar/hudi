@@ -124,6 +124,23 @@ public class HoodieAvroUtils {
     return mergedSchema;
   }
 
+  /**
+   * Adds the Hoodie metadata fields to the given schema
+   */
+  public static Schema dropMetadataFields(Schema schema) {
+    List<Schema.Field> parentFields = new ArrayList<>();
+    for (Schema.Field field : schema.getFields()) {
+      if (!isMetadataField(field.name())) {
+        parentFields.add(new Schema.Field(field.name(), field.schema(), field.doc(), null));
+      }
+    }
+
+    Schema mergedSchema = Schema
+        .createRecord(schema.getName(), schema.getDoc(), schema.getNamespace(), false);
+    mergedSchema.setFields(parentFields);
+    return mergedSchema;
+  }
+
   private static Schema initRecordKeySchema() {
     Schema.Field recordKeyField = new Schema.Field(HoodieRecord.RECORD_KEY_METADATA_FIELD,
         METADATA_FIELD_SCHEMA, "", null);

@@ -30,6 +30,7 @@ import com.uber.hoodie.exception.HoodieException;
 import com.uber.hoodie.index.HoodieIndex;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.Source;
+import com.uber.hoodie.utilities.transform.Transformer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -68,6 +69,14 @@ public class UtilHelpers {
       return (SchemaProvider) ReflectionUtils.loadClass(schemaProviderClass, cfg, jssc);
     } catch (Throwable e) {
       throw new IOException("Could not load schema provider class " + schemaProviderClass, e);
+    }
+  }
+
+  public static Transformer createTransformer(String transformerClass) throws IOException {
+    try {
+      return transformerClass == null ? null : (Transformer) ReflectionUtils.loadClass(transformerClass);
+    } catch (Throwable e) {
+      throw new IOException("Could not load transformer class " + transformerClass, e);
     }
   }
 

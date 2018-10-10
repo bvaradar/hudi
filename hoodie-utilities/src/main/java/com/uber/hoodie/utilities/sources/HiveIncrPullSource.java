@@ -56,7 +56,7 @@ import org.apache.spark.api.java.JavaSparkContext;
  * <p>
  * This produces beautiful causality, that makes data issues in ETLs very easy to debug
  */
-public class HiveIncrPullSource extends Source {
+public class HiveIncrPullSource extends AvroSource {
 
   private static volatile Logger log = LogManager.getLogger(HiveIncrPullSource.class);
 

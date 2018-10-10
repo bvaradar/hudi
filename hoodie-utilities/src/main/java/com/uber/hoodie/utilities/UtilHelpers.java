@@ -30,9 +30,13 @@ import com.uber.hoodie.exception.HoodieException;
 import com.uber.hoodie.index.HoodieIndex;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.Source;
+import com.uber.hoodie.utilities.transform.Transformer;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Optional;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -71,11 +75,24 @@ public class UtilHelpers {
     }
   }
 
+  public static Transformer createTransformer(String transformerClass) throws IOException {
+    try {
+      return transformerClass == null ? null : (Transformer) ReflectionUtils.loadClass(transformerClass);
+    } catch (Throwable e) {
+      throw new IOException("Could not load transformer class " + transformerClass, e);
+    }
+  }
+
   /**
    */
-  public static DFSPropertiesConfiguration readConfig(FileSystem fs, Path cfgPath) {
+  public static DFSPropertiesConfiguration readConfig(FileSystem fs, Path cfgPath, List<String> overriddenProps) {
     try {
-      return new DFSPropertiesConfiguration(fs, cfgPath);
+      DFSPropertiesConfiguration conf = new DFSPropertiesConfiguration(fs, cfgPath);
+      if (!overriddenProps.isEmpty()) {
+        logger.info("Adding overridden properties to file properties.");
+        conf.addProperties(new BufferedReader(new StringReader(String.join("\n", overriddenProps))));
+      }
+      return conf;
     } catch (Exception e) {
       throw new HoodieException("Unable to read props file at :" + cfgPath, e);
     }

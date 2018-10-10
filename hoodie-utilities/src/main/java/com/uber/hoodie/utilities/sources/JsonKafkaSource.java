@@ -19,9 +19,15 @@
 package com.uber.hoodie.utilities.sources;
 
 import com.uber.hoodie.common.util.TypedProperties;
+import com.uber.hoodie.common.util.collection.ImmutablePair;
+import com.uber.hoodie.common.util.collection.Pair;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
+import com.uber.hoodie.utilities.sources.helpers.KafkaOffsetGen;
+import com.uber.hoodie.utilities.sources.helpers.KafkaOffsetGen.CheckpointUtils;
+import java.util.Optional;
 import kafka.serializer.StringDecoder;
-import org.apache.avro.generic.GenericRecord;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
@@ -30,16 +36,33 @@ import org.apache.spark.streaming.kafka.OffsetRange;
 /**
  * Read json kafka data
  */
-public class JsonKafkaSource extends KafkaSource {
+public class JsonKafkaSource extends JsonSource {
+
+  private static volatile Logger log = LogManager.getLogger(JsonKafkaSource.class);
+
+  private final KafkaOffsetGen offsetGen;
 
   public JsonKafkaSource(TypedProperties properties, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
     super(properties, sparkContext, schemaProvider);
+    offsetGen = new KafkaOffsetGen(properties);
   }
 
   @Override
-  protected JavaRDD<GenericRecord> toAvroRDD(OffsetRange[] offsetRanges, AvroConvertor avroConvertor) {
+  public Pair<Optional<JavaRDD<String>>, String> fetchNewData(Optional<String> lastCheckpointStr,
+      long sourceLimit) {
+    OffsetRange[] offsetRanges = offsetGen.getNextOffsetRanges(lastCheckpointStr, sourceLimit);
+    long totalNewMsgs = CheckpointUtils.totalNewMessages(offsetRanges);
+    if (totalNewMsgs <= 0) {
+      return new ImmutablePair<>(Optional.empty(), lastCheckpointStr.isPresent() ? lastCheckpointStr.get() : "");
+    } else {
+      log.info("About to read " + totalNewMsgs + " from Kafka for topic :" + offsetGen.getTopicName());
+    }
+    JavaRDD<String> newDataRDD = toRDD(offsetRanges);
+    return new ImmutablePair<>(Optional.of(newDataRDD), CheckpointUtils.offsetsToStr(offsetRanges));
+  }
+
+  private JavaRDD<String> toRDD(OffsetRange[] offsetRanges) {
     return KafkaUtils.createRDD(sparkContext, String.class, String.class, StringDecoder.class, StringDecoder.class,
-        kafkaParams, offsetRanges)
-        .values().map(jsonStr -> avroConvertor.fromJson(jsonStr));
+        offsetGen.getKafkaParams(), offsetRanges).values();
   }
 }

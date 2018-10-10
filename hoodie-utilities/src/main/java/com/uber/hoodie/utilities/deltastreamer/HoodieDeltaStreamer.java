@@ -22,6 +22,7 @@ import com.beust.jcommander.IStringConverter;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
+import com.uber.hoodie.AvroConversionUtils;
 import com.uber.hoodie.DataSourceUtils;
 import com.uber.hoodie.HoodieWriteClient;
 import com.uber.hoodie.KeyGenerator;
@@ -47,9 +48,10 @@ import com.uber.hoodie.utilities.exception.HoodieDeltaStreamerException;
 import com.uber.hoodie.utilities.schema.FilebasedSchemaProvider;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.JsonDFSSource;
-import com.uber.hoodie.utilities.sources.Source;
+import com.uber.hoodie.utilities.transform.Transformer;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +64,8 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import scala.collection.JavaConversions;
 
 /**
@@ -81,13 +85,18 @@ public class HoodieDeltaStreamer implements Serializable {
   /**
    * Source to pull deltas from
    */
-  private transient Source source;
+  private transient SourceFormatAdapter source;
 
   /**
    * Schema provider that supplies the command for reading the input and writing out the target
    * table.
    */
   private transient SchemaProvider schemaProvider;
+
+  /**
+   * UDF to transform source to target dataset before writing
+   */
+  private transient Transformer transformer;
 
   /**
    * Extract the key for the target dataset
@@ -129,16 +138,19 @@ public class HoodieDeltaStreamer implements Serializable {
       this.commitTimelineOpt = Optional.empty();
     }
 
-    this.props = UtilHelpers.readConfig(fs, new Path(cfg.propsFilePath)).getConfig();
+    this.props = UtilHelpers.readConfig(fs, new Path(cfg.propsFilePath), cfg.configs).getConfig();
     log.info("Creating delta streamer with configs : " + props.toString());
     this.schemaProvider = UtilHelpers.createSchemaProvider(cfg.schemaProviderClassName, props, jssc);
+    this.transformer = UtilHelpers.createTransformer(cfg.transformerClassName);
     this.keyGenerator = DataSourceUtils.createKeyGenerator(cfg.keyGeneratorClass, props);
-    this.source = UtilHelpers.createSource(cfg.sourceClassName, props, jssc, schemaProvider);
 
     // register the schemas, so that shuffle does not serialize the full schemas
-    List<Schema> schemas = Arrays.asList(schemaProvider.getSourceSchema(),
-        schemaProvider.getTargetSchema());
+    List<Schema> schemas = Arrays.asList(schemaProvider.getSourceSchema(), schemaProvider.getTargetSchema());
+    log.info("Registering Schema :" + schemas);
     jssc.sc().getConf().registerAvroSchemas(JavaConversions.asScalaBuffer(schemas).toList());
+
+    // Source needs to be created after Avro Schema is registered
+    this.source = new SourceFormatAdapter(UtilHelpers.createSource(cfg.sourceClassName, props, jssc, schemaProvider));
   }
 
   public void sync() throws Exception {
@@ -163,16 +175,38 @@ public class HoodieDeltaStreamer implements Serializable {
     }
     log.info("Checkpoint to resume from : " + resumeCheckpointStr);
 
-    // Pull the data from the source & prepare the write
-    Pair<Optional<JavaRDD<GenericRecord>>, String> dataAndCheckpoint = source.fetchNewData(
-        resumeCheckpointStr, cfg.sourceLimit);
+    final JavaRDD<GenericRecord> avroRDD;
+    final String checkpointStr;
+    if (transformer != null) {
+      // Transformation is needed. Fetch New rows in Row Format, apply transformation and then convert them
+      // to generic records for writing
+      Pair<Optional<Dataset<Row>>, String> dataAndCheckpoint = source.fetchNewDataInRowFormat(
+          resumeCheckpointStr, cfg.sourceLimit);
 
-    if (!dataAndCheckpoint.getKey().isPresent()) {
-      log.info("No new data, nothing to commit.. ");
-      return;
+      if ((!dataAndCheckpoint.getLeft().isPresent()) || (dataAndCheckpoint.getLeft().get().count() == 0)) {
+        log.info("No new data, nothing to commit.. ");
+        return;
+      }
+
+      Optional<Dataset<Row>> transformed = dataAndCheckpoint.getLeft()
+              .map(data -> Optional.ofNullable(transformer.apply(jssc, data, props))).orElse(Optional.empty());
+      transformed.get().count();
+      checkpointStr = dataAndCheckpoint.getRight();
+      avroRDD = transformed.map(t ->
+         AvroConversionUtils.createRdd(t, "hudi_source", "hudi.source").toJavaRDD()
+      ).orElse(jssc.emptyRDD());
+    } else {
+      // Pull the data from the source & prepare the write
+      Pair<Optional<JavaRDD<GenericRecord>>, String> dataAndCheckpoint =
+          source.fetchNewDataInAvroFormat(resumeCheckpointStr, cfg.sourceLimit);
+      if ((!dataAndCheckpoint.getLeft().isPresent()) || (dataAndCheckpoint.getLeft().get().count() == 0)) {
+        log.info("No new data, nothing to commit.. ");
+        return;
+      }
+      avroRDD = dataAndCheckpoint.getLeft().get();
+      checkpointStr = dataAndCheckpoint.getRight();
     }
 
-    JavaRDD<GenericRecord> avroRDD = dataAndCheckpoint.getKey().get();
     JavaRDD<HoodieRecord> records = avroRDD.map(gr -> {
       HoodieRecordPayload payload = DataSourceUtils.createPayload(cfg.payloadClassName, gr,
           (Comparable) gr.get(cfg.sourceOrderingField));
@@ -210,7 +244,7 @@ public class HoodieDeltaStreamer implements Serializable {
 
     // Simply commit for now. TODO(vc): Support better error handlers later on
     HashMap<String, String> checkpointCommitMetadata = new HashMap<>();
-    checkpointCommitMetadata.put(CHECKPOINT_KEY, dataAndCheckpoint.getValue());
+    checkpointCommitMetadata.put(CHECKPOINT_KEY, checkpointStr);
 
     boolean success = client.commit(commitTime, writeStatusRDD,
         Optional.of(checkpointCommitMetadata));
@@ -266,6 +300,10 @@ public class HoodieDeltaStreamer implements Serializable {
     public String propsFilePath =
         "file://" + System.getProperty("user.dir") + "/src/test/resources/delta-streamer-config/dfs-source.properties";
 
+    @Parameter(names = {"--conf"}, description = "Any configuration that can be set in the properties file "
+        + "(--propsFilePath) can also be passed command line using this parameter")
+    public List<String> configs = new ArrayList<>();
+
     @Parameter(names = {"--source-class"}, description = "Subclass of com.uber.hoodie.utilities.sources to read data. "
         + "Built-in options: com.uber.hoodie.utilities.sources.{JsonDFSSource (default), AvroDFSSource, "
         + "JsonKafkaSource, AvroKafkaSource, HiveIncrPullSource}")
@@ -288,8 +326,15 @@ public class HoodieDeltaStreamer implements Serializable {
         + ".SchemaProvider to attach schemas to input & target table data, built in options: FilebasedSchemaProvider")
     public String schemaProviderClassName = FilebasedSchemaProvider.class.getName();
 
+    @Parameter(names = {"--transformer-class"},
+        description = "subclass of com.uber.hoodie.utilities.transform.Transformer"
+        + ". UDF to transform raw source dataset to a target dataset (conforming to target schema) before writing."
+            + " Default : Not set. E:g - com.uber.hoodie.utilities.transform.SqlQueryBasedTransformer (which allows"
+            + "a SQL query templated to be passed as a transformation function)")
+    public String transformerClassName = null;
+
     @Parameter(names = {"--source-limit"}, description = "Maximum amount of data to read from source. "
-        + "Default: No limit For e.g: DFSSource => max bytes to read, KafkaSource => max events to read")
+        + "Default: No limit For e.g: DFS-Source => max bytes to read, Kafka-Source => max events to read")
     public long sourceLimit = Long.MAX_VALUE;
 
     @Parameter(names = {"--op"}, description = "Takes one of these values : UPSERT (default), INSERT (use when input "

@@ -19,7 +19,11 @@
 package com.uber.hoodie.utilities.sources;
 
 import com.uber.hoodie.common.util.TypedProperties;
+import com.uber.hoodie.common.util.collection.ImmutablePair;
+import com.uber.hoodie.common.util.collection.Pair;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
+import com.uber.hoodie.utilities.sources.helpers.DFSPathSelector;
+import java.util.Optional;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.mapred.AvroKey;
 import org.apache.avro.mapreduce.AvroKeyInputFormat;
@@ -31,14 +35,27 @@ import org.apache.spark.api.java.JavaSparkContext;
 /**
  * DFS Source that reads avro data
  */
-public class AvroDFSSource extends DFSSource {
+public class AvroDFSSource extends AvroSource {
+
+  private final DFSPathSelector pathSelector;
 
   public AvroDFSSource(TypedProperties props, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
     super(props, sparkContext, schemaProvider);
+    this.pathSelector = new DFSPathSelector(props, sparkContext.hadoopConfiguration());
   }
 
   @Override
-  protected JavaRDD<GenericRecord> fromFiles(AvroConvertor convertor, String pathStr) {
+  public Pair<Optional<JavaRDD<GenericRecord>>, String> fetchNewData(Optional<String> lastCkptStr,
+      long sourceLimit) {
+    Pair<Optional<String>, String> selPathsWithMaxModificationTime =
+        pathSelector.getNextFilePathsAndMaxModificationTime(lastCkptStr, sourceLimit);
+    return selPathsWithMaxModificationTime.getLeft().map(pathStr -> new ImmutablePair<>(
+        Optional.of(fromFiles(pathStr)),
+        selPathsWithMaxModificationTime.getRight()))
+        .orElse(ImmutablePair.of(Optional.empty(), selPathsWithMaxModificationTime.getRight()));
+  }
+
+  private JavaRDD<GenericRecord> fromFiles(String pathStr) {
     JavaPairRDD<AvroKey, NullWritable> avroRDD = sparkContext.newAPIHadoopFile(pathStr,
         AvroKeyInputFormat.class, AvroKey.class, NullWritable.class,
         sparkContext.hadoopConfiguration());

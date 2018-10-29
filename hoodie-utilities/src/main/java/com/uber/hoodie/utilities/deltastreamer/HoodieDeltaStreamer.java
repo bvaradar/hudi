@@ -51,6 +51,7 @@ import com.uber.hoodie.utilities.sources.JsonDFSSource;
 import com.uber.hoodie.utilities.transform.Transformer;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -137,7 +138,7 @@ public class HoodieDeltaStreamer implements Serializable {
       this.commitTimelineOpt = Optional.empty();
     }
 
-    this.props = UtilHelpers.readConfig(fs, new Path(cfg.propsFilePath)).getConfig();
+    this.props = UtilHelpers.readConfig(fs, new Path(cfg.propsFilePath), cfg.configs).getConfig();
     log.info("Creating delta streamer with configs : " + props.toString());
     this.schemaProvider = UtilHelpers.createSchemaProvider(cfg.schemaProviderClassName, props, jssc);
     this.transformer = UtilHelpers.createTransformer(cfg.transformerClassName);
@@ -298,6 +299,10 @@ public class HoodieDeltaStreamer implements Serializable {
         + "to individual classes, for supported properties.")
     public String propsFilePath =
         "file://" + System.getProperty("user.dir") + "/src/test/resources/delta-streamer-config/dfs-source.properties";
+
+    @Parameter(names = {"--conf"}, description = "Any configuration that can be set in the properties file "
+        + "(--propsFilePath) can also be passed command line using this parameter")
+    public List<String> configs = new ArrayList<>();
 
     @Parameter(names = {"--source-class"}, description = "Subclass of com.uber.hoodie.utilities.sources to read data. "
         + "Built-in options: com.uber.hoodie.utilities.sources.{JsonDFSSource (default), AvroDFSSource, "

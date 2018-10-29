@@ -30,10 +30,12 @@ import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.exception.DatasetNotFoundException;
 import com.uber.hoodie.utilities.deltastreamer.HoodieDeltaStreamer;
 import com.uber.hoodie.utilities.deltastreamer.HoodieDeltaStreamer.Operation;
+import com.uber.hoodie.utilities.sources.HoodieIncrSource;
 import com.uber.hoodie.utilities.sources.TestDataSource;
 import com.uber.hoodie.utilities.transform.SqlQueryBasedTransformer;
 import com.uber.hoodie.utilities.transform.Transformer;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -78,6 +80,18 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     props.setProperty("hoodie.deltastreamer.schemaprovider.source.schema.file", dfsBasePath + "/source.avsc");
     props.setProperty("hoodie.deltastreamer.schemaprovider.target.schema.file", dfsBasePath + "/target.avsc");
     UtilitiesTestBase.Helpers.savePropsToDFS(props, dfs, dfsBasePath + "/test-source.properties");
+
+    // Properties used for the delta-streamer which incrementally pulls from upstream Hudi source table and writes to
+    // downstream hudi table
+    TypedProperties downstreamProps = new TypedProperties();
+    downstreamProps.setProperty("include", "base.properties");
+    downstreamProps.setProperty("hoodie.datasource.write.recordkey.field", "_row_key");
+    downstreamProps.setProperty("hoodie.datasource.write.partitionpath.field", "not_there");
+    // Source schema is the target schema of upstream table
+    downstreamProps.setProperty("hoodie.deltastreamer.schemaprovider.source.schema.file", dfsBasePath + "/target.avsc");
+    downstreamProps.setProperty("hoodie.deltastreamer.schemaprovider.target.schema.file", dfsBasePath + "/target.avsc");
+    UtilitiesTestBase.Helpers.savePropsToDFS(downstreamProps, dfs,
+        dfsBasePath + "/test-downstream-source.properties");
   }
 
   @AfterClass
@@ -116,6 +130,26 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
       return cfg;
     }
 
+    static HoodieDeltaStreamer.Config makeConfigForHudiIncrSrc(String srcBasePath, String basePath, Operation op,
+        boolean addReadLatestOnMissingCkpt) {
+      HoodieDeltaStreamer.Config cfg = new HoodieDeltaStreamer.Config();
+      cfg.targetBasePath = basePath;
+      cfg.targetTableName = "hoodie_trips_copy";
+      cfg.storageType = "COPY_ON_WRITE";
+      cfg.sourceClassName = HoodieIncrSource.class.getName();
+      cfg.operation = op;
+      cfg.sourceOrderingField = "timestamp";
+      cfg.propsFilePath = dfsBasePath + "/test-downstream-source.properties";
+      cfg.sourceLimit = 1000;
+      List<String> cfgs = new ArrayList<>();
+      cfgs.add("hoodie.deltastreamer.source.hoodie.path=" + srcBasePath);
+      if (addReadLatestOnMissingCkpt) {
+        cfgs.add("hoodie.deltastreamer.source.hoodie.read_latest_on_midding_ckpt=true");
+      }
+      cfg.configs = cfgs;
+      return cfg;
+    }
+
     static void assertRecordCount(long expected, String datasetPath, SQLContext sqlContext) {
       long recordCount = sqlContext.read().format("com.uber.hoodie").load(datasetPath).count();
       assertEquals(expected, recordCount);
@@ -140,15 +174,16 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
       assertEquals(expected, recordCount);
     }
 
-    static void assertCommitMetadata(String expected, String datasetPath, FileSystem fs, int totalCommits)
+    static String assertCommitMetadata(String expected, String datasetPath, FileSystem fs, int totalCommits)
         throws IOException {
       HoodieTableMetaClient meta = new HoodieTableMetaClient(fs.getConf(), datasetPath);
       HoodieTimeline timeline = meta.getActiveTimeline().getCommitsTimeline().filterCompletedInstants();
-      HoodieInstant lastCommit = timeline.lastInstant().get();
+      HoodieInstant lastInstant = timeline.lastInstant().get();
       HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
-          timeline.getInstantDetails(lastCommit).get(), HoodieCommitMetadata.class);
+          timeline.getInstantDetails(lastInstant).get(), HoodieCommitMetadata.class);
       assertEquals(totalCommits, timeline.countInstants());
       assertEquals(expected, commitMetadata.getMetadata(HoodieDeltaStreamer.CHECKPOINT_KEY));
+      return lastInstant.getTimestamp();
     }
   }
 
@@ -175,7 +210,7 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
   }
 
   @Test
-  public void testBulkInsertsAndUpserts() throws Exception {
+  public void testBulkInsertsAndUpsertsFor2StepPipeline() throws Exception {
     String datasetBasePath = dfsBasePath + "/test_dataset";
 
     // Initial bulk insert
@@ -205,21 +240,35 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
 
   @Test
   /**
-   * Using a SQL template to transform a source
+   * Test Bulk Insert and upserts. Tests Hudi incremental processing using a 2 step pipeline
+   * The first step involves using a SQL template to transform a source
+   * TEST-DATA-SOURCE  ============================> HUDI TABLE 1   ===============>  HUDI TABLE 2
+   *                   (incr-pull with transform)                     (incr-pull)
+   * @throws Exception
    */
   public void testBulkInsertsAndUpsertsWithSQLBasedTransformer() throws Exception {
     String datasetBasePath = dfsBasePath + "/test_dataset2";
+    String downstreamDatasetBasePath = dfsBasePath + "/test_downstream_dataset2";
 
-    // Initial bulk insert
+    // Initial bulk insert to ingest to first hudi table
     HoodieDeltaStreamer.Config cfg = TestHelpers.makeConfig(datasetBasePath, Operation.BULK_INSERT,
         SqlQueryBasedTransformer.class.getName());
     new HoodieDeltaStreamer(cfg, jsc).sync();
     TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(1000, datasetBasePath + "/*/*.parquet", sqlContext);
-    TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
+    String lastInstantForUpstreamTable = TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
 
-    // No new data => no commits.
+    // Now incrementally pull from the above hudi table and ingest to second table
+    HoodieDeltaStreamer.Config downstreamCfg =
+        TestHelpers.makeConfigForHudiIncrSrc(datasetBasePath, downstreamDatasetBasePath, Operation.BULK_INSERT, true);
+    new HoodieDeltaStreamer(downstreamCfg, jsc).sync();
+    TestHelpers.assertRecordCount(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCountWithExactValue(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata(lastInstantForUpstreamTable, downstreamDatasetBasePath, dfs, 1);
+
+    // No new data => no commits for upstream table
     cfg.sourceLimit = 0;
     new HoodieDeltaStreamer(cfg, jsc).sync();
     TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
@@ -227,15 +276,34 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     TestHelpers.assertDistanceCountWithExactValue(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertCommitMetadata("00000", datasetBasePath, dfs, 1);
 
-    // upsert() #1
+    // with no change in upstream table, no change in downstream too when pulled.
+    new HoodieDeltaStreamer(downstreamCfg, jsc).sync();
+    TestHelpers.assertRecordCount(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCountWithExactValue(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata(lastInstantForUpstreamTable, downstreamDatasetBasePath, dfs, 1);
+
+    // upsert() #1 on upstream hudi table
     cfg.sourceLimit = 2000;
     cfg.operation = Operation.UPSERT;
     new HoodieDeltaStreamer(cfg, jsc).sync();
     TestHelpers.assertRecordCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(2000, datasetBasePath + "/*/*.parquet", sqlContext);
-    TestHelpers.assertCommitMetadata("00001", datasetBasePath, dfs, 2);
+    lastInstantForUpstreamTable = TestHelpers.assertCommitMetadata("00001", datasetBasePath, dfs, 2);
     List<Row> counts = TestHelpers.countsPerCommit(datasetBasePath + "/*/*.parquet", sqlContext);
+    assertEquals(2000, counts.get(0).getLong(1));
+
+    // Incrementally pull changes in upstream hudi table and apply to downstream table
+    downstreamCfg =
+        TestHelpers.makeConfigForHudiIncrSrc(datasetBasePath, downstreamDatasetBasePath, Operation.UPSERT, false);
+    downstreamCfg.sourceLimit = 2000;
+    new HoodieDeltaStreamer(downstreamCfg, jsc).sync();
+    TestHelpers.assertRecordCount(2000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCount(2000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertDistanceCountWithExactValue(2000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
+    TestHelpers.assertCommitMetadata(lastInstantForUpstreamTable, downstreamDatasetBasePath, dfs, 2);
+    counts = TestHelpers.countsPerCommit(downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
     assertEquals(2000, counts.get(0).getLong(1));
   }
 

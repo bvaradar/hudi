@@ -19,8 +19,10 @@
 package com.uber.hoodie.utilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.uber.hoodie.DataSourceWriteOptions;
 import com.uber.hoodie.common.model.HoodieCommitMetadata;
 import com.uber.hoodie.common.table.HoodieTableMetaClient;
 import com.uber.hoodie.common.table.HoodieTimeline;
@@ -28,6 +30,9 @@ import com.uber.hoodie.common.table.timeline.HoodieInstant;
 import com.uber.hoodie.common.util.DFSPropertiesConfiguration;
 import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.exception.DatasetNotFoundException;
+import com.uber.hoodie.hive.HiveSyncConfig;
+import com.uber.hoodie.hive.HoodieHiveClient;
+import com.uber.hoodie.hive.MultiPartKeysValueExtractor;
 import com.uber.hoodie.utilities.deltastreamer.HoodieDeltaStreamer;
 import com.uber.hoodie.utilities.deltastreamer.HoodieDeltaStreamer.Operation;
 import com.uber.hoodie.utilities.sources.HoodieIncrSource;
@@ -39,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -79,6 +85,14 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     props.setProperty("hoodie.datasource.write.partitionpath.field", "not_there");
     props.setProperty("hoodie.deltastreamer.schemaprovider.source.schema.file", dfsBasePath + "/source.avsc");
     props.setProperty("hoodie.deltastreamer.schemaprovider.target.schema.file", dfsBasePath + "/target.avsc");
+    // Hive Configs
+    props.setProperty(DataSourceWriteOptions.HIVE_URL_OPT_KEY(), "jdbc:hive2://127.0.0.1:9999/");
+    props.setProperty(DataSourceWriteOptions.HIVE_DATABASE_OPT_KEY(), "testdb1");
+    props.setProperty(DataSourceWriteOptions.HIVE_TABLE_OPT_KEY(), "hive_trips");
+    props.setProperty(DataSourceWriteOptions.HIVE_ASSUME_DATE_PARTITION_OPT_KEY(), "false");
+    props.setProperty(DataSourceWriteOptions.HIVE_PARTITION_FIELDS_OPT_KEY(), "datestr");
+    props.setProperty(DataSourceWriteOptions.HIVE_PARTITION_EXTRACTOR_CLASS_OPT_KEY(),
+        MultiPartKeysValueExtractor.class.getName());
     UtilitiesTestBase.Helpers.savePropsToDFS(props, dfs, dfsBasePath + "/test-source.properties");
 
     // Properties used for the delta-streamer which incrementally pulls from upstream Hudi source table and writes to
@@ -87,6 +101,7 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     downstreamProps.setProperty("include", "base.properties");
     downstreamProps.setProperty("hoodie.datasource.write.recordkey.field", "_row_key");
     downstreamProps.setProperty("hoodie.datasource.write.partitionpath.field", "not_there");
+
     // Source schema is the target schema of upstream table
     downstreamProps.setProperty("hoodie.deltastreamer.schemaprovider.source.schema.file", dfsBasePath + "/target.avsc");
     downstreamProps.setProperty("hoodie.deltastreamer.schemaprovider.target.schema.file", dfsBasePath + "/target.avsc");
@@ -124,6 +139,7 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
       cfg.sourceClassName = TestDataSource.class.getName();
       cfg.transformerClassName = transformerClassName;
       cfg.operation = op;
+      cfg.enableHiveSync = true;
       cfg.sourceOrderingField = "timestamp";
       cfg.propsFilePath = dfsBasePath + "/test-source.properties";
       cfg.sourceLimit = 1000;
@@ -142,10 +158,8 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
       cfg.propsFilePath = dfsBasePath + "/test-downstream-source.properties";
       cfg.sourceLimit = 1000;
       List<String> cfgs = new ArrayList<>();
+      cfgs.add("hoodie.deltastreamer.source.hoodie.read_latest_on_midding_ckpt=" + addReadLatestOnMissingCkpt);
       cfgs.add("hoodie.deltastreamer.source.hoodie.path=" + srcBasePath);
-      if (addReadLatestOnMissingCkpt) {
-        cfgs.add("hoodie.deltastreamer.source.hoodie.read_latest_on_midding_ckpt=true");
-      }
       cfg.configs = cfgs;
       return cfg;
     }
@@ -238,22 +252,25 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     assertEquals(2000, counts.get(0).getLong(1));
   }
 
-  @Test
   /**
-   * Test Bulk Insert and upserts. Tests Hudi incremental processing using a 2 step pipeline
+   * Test Bulk Insert and upserts with hive syncing. Tests Hudi incremental processing using a 2 step pipeline
    * The first step involves using a SQL template to transform a source
    * TEST-DATA-SOURCE  ============================> HUDI TABLE 1   ===============>  HUDI TABLE 2
    *                   (incr-pull with transform)                     (incr-pull)
+   * Hudi Table 1 is synced with Hive.
    * @throws Exception
    */
+  @Test
   public void testBulkInsertsAndUpsertsWithSQLBasedTransformerFor2StepPipeline() throws Exception {
     String datasetBasePath = dfsBasePath + "/test_dataset2";
     String downstreamDatasetBasePath = dfsBasePath + "/test_downstream_dataset2";
 
+    HiveSyncConfig hiveSyncConfig = getHiveSyncConfig(datasetBasePath, "hive_trips");
+
     // Initial bulk insert to ingest to first hudi table
     HoodieDeltaStreamer.Config cfg = TestHelpers.makeConfig(datasetBasePath, Operation.BULK_INSERT,
         SqlQueryBasedTransformer.class.getName());
-    new HoodieDeltaStreamer(cfg, jsc).sync();
+    new HoodieDeltaStreamer(cfg, jsc, dfs, hiveServer.getHiveConf()).sync();
     TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(1000, datasetBasePath + "/*/*.parquet", sqlContext);
@@ -262,7 +279,7 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     // Now incrementally pull from the above hudi table and ingest to second table
     HoodieDeltaStreamer.Config downstreamCfg =
         TestHelpers.makeConfigForHudiIncrSrc(datasetBasePath, downstreamDatasetBasePath, Operation.BULK_INSERT, true);
-    new HoodieDeltaStreamer(downstreamCfg, jsc).sync();
+    new HoodieDeltaStreamer(downstreamCfg, jsc, dfs, hiveServer.getHiveConf()).sync();
     TestHelpers.assertRecordCount(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(1000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
@@ -270,7 +287,7 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
 
     // No new data => no commits for upstream table
     cfg.sourceLimit = 0;
-    new HoodieDeltaStreamer(cfg, jsc).sync();
+    new HoodieDeltaStreamer(cfg, jsc, dfs, hiveServer.getHiveConf()).sync();
     TestHelpers.assertRecordCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(1000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(1000, datasetBasePath + "/*/*.parquet", sqlContext);
@@ -286,7 +303,7 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     // upsert() #1 on upstream hudi table
     cfg.sourceLimit = 2000;
     cfg.operation = Operation.UPSERT;
-    new HoodieDeltaStreamer(cfg, jsc).sync();
+    new HoodieDeltaStreamer(cfg, jsc, dfs, hiveServer.getHiveConf()).sync();
     TestHelpers.assertRecordCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(2000, datasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(2000, datasetBasePath + "/*/*.parquet", sqlContext);
@@ -302,9 +319,19 @@ public class TestHoodieDeltaStreamer extends UtilitiesTestBase {
     TestHelpers.assertRecordCount(2000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCount(2000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
     TestHelpers.assertDistanceCountWithExactValue(2000, downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
-    TestHelpers.assertCommitMetadata(lastInstantForUpstreamTable, downstreamDatasetBasePath, dfs, 2);
+    String finalInstant =
+        TestHelpers.assertCommitMetadata(lastInstantForUpstreamTable, downstreamDatasetBasePath, dfs, 2);
     counts = TestHelpers.countsPerCommit(downstreamDatasetBasePath + "/*/*.parquet", sqlContext);
     assertEquals(2000, counts.get(0).getLong(1));
+
+    // Test Hive integration
+    HoodieHiveClient hiveClient = new HoodieHiveClient(hiveSyncConfig, hiveServer.getHiveConf(), dfs);
+    assertTrue("Table " + hiveSyncConfig.tableName + " should exist",
+        hiveClient.doesTableExist());
+    assertEquals("Table partitions should match the number of partitions we wrote", 1,
+        hiveClient.scanTablePartitions().size());
+    assertEquals("The last commit that was sycned should be updated in the TBLPROPERTIES",
+        lastInstantForUpstreamTable, hiveClient.getLastCommitTimeSynced().get());
   }
 
   @Test

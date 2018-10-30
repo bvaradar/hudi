@@ -125,6 +125,15 @@
 
     <dependency>
       <groupId>com.uber.hoodie</groupId>
+      <artifactId>hoodie-hive</artifactId>
+      <version>${project.version}</version>
+      <classifier>tests</classifier>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.uber.hoodie</groupId>
       <artifactId>hoodie-spark</artifactId>
       <version>${project.version}</version>
     </dependency>

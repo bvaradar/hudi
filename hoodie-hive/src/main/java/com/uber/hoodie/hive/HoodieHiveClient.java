@@ -90,7 +90,7 @@ public class HoodieHiveClient {
   private Connection connection;
   private HoodieTimeline activeTimeline;
 
-  HoodieHiveClient(HiveSyncConfig cfg, HiveConf configuration, FileSystem fs) {
+  public HoodieHiveClient(HiveSyncConfig cfg, HiveConf configuration, FileSystem fs) {
     this.syncConfig = cfg;
     this.fs = fs;
     this.metaClient = new HoodieTableMetaClient(fs.getConf(), cfg.basePath, true);
@@ -229,7 +229,7 @@ public class HoodieHiveClient {
   /**
    * Scan table partitions
    */
-  List<Partition> scanTablePartitions() throws TException {
+  public List<Partition> scanTablePartitions() throws TException {
     return client.listPartitions(syncConfig.databaseName, syncConfig.tableName, (short) -1);
   }
 
@@ -266,7 +266,7 @@ public class HoodieHiveClient {
   /**
    * Get the table schema
    */
-  Map<String, String> getTableSchema() {
+  public Map<String, String> getTableSchema() {
     if (!doesTableExist()) {
       throw new IllegalArgumentException(
           "Failed to get schema for table " + syncConfig.tableName + " does not exist");
@@ -433,7 +433,7 @@ public class HoodieHiveClient {
   /**
    * @return true if the configured table exists
    */
-  boolean doesTableExist() {
+  public boolean doesTableExist() {
     try {
       return client.tableExists(syncConfig.databaseName, syncConfig.tableName);
     } catch (TException e) {
@@ -447,7 +447,7 @@ public class HoodieHiveClient {
    *
    * @param s SQL to execute
    */
-  void updateHiveSQL(String s) {
+  public void updateHiveSQL(String s) {
     Statement stmt = null;
     try {
       stmt = connection.createStatement();
@@ -518,7 +518,7 @@ public class HoodieHiveClient {
     return fs;
   }
 
-  Optional<String> getLastCommitTimeSynced() {
+  public Optional<String> getLastCommitTimeSynced() {
     // Get the last commit time from the TBLproperties
     try {
       Table database = client.getTable(syncConfig.databaseName, syncConfig.tableName);
@@ -530,7 +530,7 @@ public class HoodieHiveClient {
     }
   }
 
-  void close() {
+  public void close() {
     try {
       if (connection != null) {
         connection.close();
@@ -546,7 +546,8 @@ public class HoodieHiveClient {
   @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
   List<String> getPartitionsWrittenToSince(Optional<String> lastCommitTimeSynced) {
     if (!lastCommitTimeSynced.isPresent()) {
-      LOG.info("Last commit time synced is not known, listing all partitions");
+      System.out.println("Last commit time synced is not known, listing all partitions in " + syncConfig.basePath + ", FS :" + fs);
+      LOG.info("Last commit time synced is not known, listing all partitions in " + syncConfig.basePath + ", FS :" + fs);
       try {
         return FSUtils.getAllPartitionPaths(fs, syncConfig.basePath,
             syncConfig.assumeDatePartitioning);
@@ -569,6 +570,10 @@ public class HoodieHiveClient {
       }).flatMap(s -> s.getPartitionToWriteStats().keySet().stream()).distinct()
           .collect(Collectors.toList());
     }
+  }
+
+  List<String> getAllTables(String db) throws Exception {
+    return client.getAllTables(db);
   }
 
   void updateLastCommitTimeSynced() {

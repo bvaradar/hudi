@@ -41,6 +41,8 @@ import com.uber.hoodie.common.util.collection.Pair;
 import com.uber.hoodie.config.HoodieCompactionConfig;
 import com.uber.hoodie.config.HoodieIndexConfig;
 import com.uber.hoodie.config.HoodieWriteConfig;
+import com.uber.hoodie.hive.HiveSyncConfig;
+import com.uber.hoodie.hive.HiveSyncTool;
 import com.uber.hoodie.index.HoodieIndex;
 import com.uber.hoodie.utilities.HiveIncrementalPuller;
 import com.uber.hoodie.utilities.UtilHelpers;
@@ -58,8 +60,10 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
@@ -120,12 +124,21 @@ public class HoodieDeltaStreamer implements Serializable {
 
 
   /**
+   * Hive Config
+   */
+  private transient HiveConf hiveConf;
+
+  /**
    * Bag of properties with source, hoodie client, key generator etc.
    */
   TypedProperties props;
 
-
   public HoodieDeltaStreamer(Config cfg, JavaSparkContext jssc) throws IOException {
+    this(cfg, jssc, FSUtils.getFs(cfg.targetBasePath, jssc.hadoopConfiguration()),
+        getDefaultHiveConf(jssc.hadoopConfiguration()));
+  }
+
+  public HoodieDeltaStreamer(Config cfg, JavaSparkContext jssc, FileSystem fs, HiveConf hiveConf) throws IOException {
     this.cfg = cfg;
     this.jssc = jssc;
     this.fs = FSUtils.getFs(cfg.targetBasePath, jssc.hadoopConfiguration());
@@ -151,6 +164,14 @@ public class HoodieDeltaStreamer implements Serializable {
 
     // Source needs to be created after Avro Schema is registered
     this.source = new SourceFormatAdapter(UtilHelpers.createSource(cfg.sourceClassName, props, jssc, schemaProvider));
+
+    this.hiveConf = hiveConf;
+  }
+
+  private static HiveConf getDefaultHiveConf(Configuration cfg) {
+    HiveConf hiveConf = new HiveConf();
+    hiveConf.addResource(cfg);
+    return hiveConf;
   }
 
   public void sync() throws Exception {
@@ -254,7 +275,21 @@ public class HoodieDeltaStreamer implements Serializable {
     } else {
       log.info("Commit " + commitTime + " failed!");
     }
+
+    // Sync to hive if enabled
+    syncHive();
+
     client.close();
+  }
+
+  public void syncHive() {
+    if (cfg.enableHiveSync) {
+      HiveSyncConfig hiveSyncConfig = DataSourceUtils.buildHiveSyncConfig(props, cfg.targetBasePath);
+      log.info("Syncing target hoodie table with hive table(" + hiveSyncConfig.tableName
+          + "). Hive metastore URL :" + hiveSyncConfig.jdbcUrl + ", basePath :" + cfg.targetBasePath);
+
+      new HiveSyncTool(hiveSyncConfig, hiveConf, fs).syncHoodieTable();
+    }
   }
 
   private HoodieWriteConfig getHoodieClientConfig() throws Exception {
@@ -345,6 +380,9 @@ public class HoodieDeltaStreamer implements Serializable {
     @Parameter(names = {"--filter-dupes"}, description = "Should duplicate records from source be dropped/filtered out"
         + "before insert/bulk-insert")
     public Boolean filterDupes = false;
+
+    @Parameter(names = {"--enable-hive-sync"}, description = "Enable syncing to hive")
+    public Boolean enableHiveSync = false;
 
     @Parameter(names = {"--spark-master"}, description = "spark master to use.")
     public String sparkMaster = "local[2]";

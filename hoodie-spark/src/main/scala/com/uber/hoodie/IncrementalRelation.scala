@@ -83,6 +83,14 @@ class IncrementalRelation(val sqlContext: SQLContext,
       sqlContext.sparkContext.hadoopConfiguration, new Path(metaFilePath)))
   }
 
+  val filters = {
+    if (optParams.contains(DataSourceReadOptions.PUSH_DOWN_INCR_FILTERS_OPT_KEY)) {
+      val filterStr = optParams.get(DataSourceReadOptions.PUSH_DOWN_INCR_FILTERS_OPT_KEY).getOrElse("")
+      filterStr.split(",").filter(!_.isEmpty)
+    }
+    Array[String]()
+  }
+
   override def schema: StructType = latestSchema
 
   override def buildScan(): RDD[Row] = {
@@ -99,11 +107,13 @@ class IncrementalRelation(val sqlContext: SQLContext,
     if (fileIdToFullPath.isEmpty) {
       sqlContext.sparkContext.emptyRDD[Row]
     } else {
-      sqlContext.read.options(sOpts)
+      log.info("Additional Filters to be applied to incremental source are :" + filters)
+      filters.foldLeft(sqlContext.read.options(sOpts)
         .schema(latestSchema)
         .parquet(fileIdToFullPath.values.toList: _*)
         .filter(String.format("%s >= '%s'", HoodieRecord.COMMIT_TIME_METADATA_FIELD, commitsToReturn.head.getTimestamp))
-        .filter(String.format("%s <= '%s'", HoodieRecord.COMMIT_TIME_METADATA_FIELD, commitsToReturn.last.getTimestamp))
+        .filter(String.format("%s <= '%s'",
+          HoodieRecord.COMMIT_TIME_METADATA_FIELD, commitsToReturn.last.getTimestamp)))((e, f) => e.filter(f))
         .toDF().rdd
     }
   }

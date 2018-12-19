@@ -75,8 +75,42 @@
                   <include>com.yammer.metrics:metrics-core</include>
                   <include>com.101tec:zkclient</include>
                   <include>org.apache.kafka:kafka-clients</include>
+                  <include>org.apache.hive:hive-common</include>
+                  <include>org.apache.hive:hive-service</include>
+                  <include>org.apache.hive:hive-metastore</include>
+                  <include>org.apache.hive:hive-jdbc</include>
                 </includes>
               </artifactSet>
+              <relocations>
+                <relocation>
+                  <pattern>org.apache.hive.jdbc.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hive.jdbc.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.hadoop.hive.metastore.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hadoop_hive.metastore.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.hive.common.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hive.common.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.hadoop.hive.common.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hadoop_hive.common.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.hadoop.hive.conf.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hadoop_hive.conf.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.hive.service.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hive.service.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.hadoop.hive.service.</pattern>
+                  <shadedPattern>com.uber.hoodie.org.apache.hadoop_hive.service.</shadedPattern>
+                </relocation>
+              </relocations>
             </configuration>
           </execution>
         </executions>

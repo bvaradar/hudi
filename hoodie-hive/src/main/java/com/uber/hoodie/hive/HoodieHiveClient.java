@@ -468,8 +468,10 @@ public class HoodieHiveClient {
       BasicDataSource ds = new HiveDataSource();
       ds.setDriverClassName(HiveDriver.class.getCanonicalName());
       ds.setUrl(getHiveJdbcUrlWithDefaultDBName());
-      ds.setUsername(syncConfig.hiveUser);
-      ds.setPassword(syncConfig.hivePass);
+      if (syncConfig.hiveUser != null) {
+        ds.setUsername(syncConfig.hiveUser);
+        ds.setPassword(syncConfig.hivePass);
+      }
       LOG.info("Getting Hive Connection from Datasource " + ds);
       try {
         this.connection = ds.getConnection();

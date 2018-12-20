@@ -139,7 +139,8 @@ public class HoodieIncrSource extends RowSource {
     log.info("Validated Source Schema :" + validated.schema());
 
     // Remove Hoodie meta columns from input source
-    final Dataset<Row> src = validated.drop(HoodieRecord.HOODIE_META_COLUMNS.toArray(new String[0]));
+    final Dataset<Row> src = validated.drop(HoodieRecord.HOODIE_META_COLUMNS.stream()
+        .filter(x -> !x.equals("_hoodie_partition_path")).toArray(String[]::new));
     log.info("Final Schema from Source is :" + src.schema());
     return Pair.of(Optional.of(src), instantEndpts.getRight());
   }

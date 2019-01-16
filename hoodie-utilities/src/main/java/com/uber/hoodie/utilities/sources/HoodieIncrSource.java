@@ -76,12 +76,17 @@ public class HoodieIncrSource extends RowSource {
 
   @Override
   public Pair<Optional<Dataset<Row>>, String> fetchNextBatch(Optional<String> lastCkptStr, long sourceLimit) {
-    DataSourceUtils.checkRequiredProperties(props, Arrays.asList(Config.HOODIE_SRC_BASE_PATH,
-        Config.HOODIE_SRC_PARTITION_FIELDS));
+
+    DataSourceUtils.checkRequiredProperties(props, Arrays.asList(Config.HOODIE_SRC_BASE_PATH));
+
+    /**
+     DataSourceUtils.checkRequiredProperties(props, Arrays.asList(Config.HOODIE_SRC_BASE_PATH,
+     Config.HOODIE_SRC_PARTITION_FIELDS));
     List<String> partitionFields = props.getStringList(Config.HOODIE_SRC_PARTITION_FIELDS, ",",
         new ArrayList<>());
     PartitionValueExtractor extractor = DataSourceUtils.createPartitionExtractor(props.getString(
         Config.HOODIE_SRC_PARTITION_EXTRACTORCLASS, Config.DEFAULT_HOODIE_SRC_PARTITION_EXTRACTORCLASS));
+    **/
     String srcPath = props.getString(Config.HOODIE_SRC_BASE_PATH);
     int numInstantsPerFetch = props.getInteger(Config.NUM_INSTANTS_PER_FETCH, Config.DEFAULT_NUM_INSTANTS_PER_FETCH);
     boolean readLatestOnMissingCkpt = props.getBoolean(Config.READ_LATEST_INSTANT_ON_MISSING_CKPT,
@@ -107,6 +112,7 @@ public class HoodieIncrSource extends RowSource {
 
     Dataset<Row> source = reader.load(srcPath);
 
+    /**
     log.info("Partition Fields are : (" + partitionFields + "). Initial Source Schema :" + source.schema());
 
     StructType newSchema = new StructType(source.schema().fields());
@@ -117,7 +123,7 @@ public class HoodieIncrSource extends RowSource {
     /**
      * Validates if the commit time is sane and also generates Partition fields from _hoodie_partition_path if
      * configured
-     */
+     *
     Dataset<Row> validated = source.map((MapFunction<Row, Row>) (Row row) -> {
       // _hoodie_instant_time
       String instantTime = row.getString(0);
@@ -137,11 +143,12 @@ public class HoodieIncrSource extends RowSource {
     }, RowEncoder.apply(newSchema));
 
     log.info("Validated Source Schema :" + validated.schema());
+    **/
 
-    // Remove Hoodie meta columns from input source
-    final Dataset<Row> src = validated.drop(HoodieRecord.HOODIE_META_COLUMNS.stream()
-        .filter(x -> !x.equals("_hoodie_partition_path")).toArray(String[]::new));
-    log.info("Final Schema from Source is :" + src.schema());
+    // Remove Hoodie meta columns except partition path from input source
+    final Dataset<Row> src = source.drop(HoodieRecord.HOODIE_META_COLUMNS.stream()
+        .filter(x -> !x.equals(HoodieRecord.PARTITION_PATH_METADATA_FIELD)).toArray(String[]::new));
+    //log.info("Final Schema from Source is :" + src.schema());
     return Pair.of(Optional.of(src), instantEndpts.getRight());
   }
 }

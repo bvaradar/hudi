@@ -1,30 +1,20 @@
 package com.uber.hoodie.utilities.sources;
 
-import com.google.common.base.Preconditions;
 import com.uber.hoodie.DataSourceReadOptions;
 import com.uber.hoodie.DataSourceUtils;
 import com.uber.hoodie.common.model.HoodieRecord;
 import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.common.util.collection.Pair;
-import com.uber.hoodie.hive.PartitionValueExtractor;
 import com.uber.hoodie.hive.SlashEncodedDayPartitionValueExtractor;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.helpers.IncrSourceHelper;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.StructType;
 
 public class HoodieIncrSource extends RowSource {
 

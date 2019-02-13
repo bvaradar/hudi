@@ -72,10 +72,18 @@ public class HoodieWriteStat implements Serializable {
   private long totalWriteBytes;
 
   /**
+   * File Size as of close
+   */
+  private long fileSizeInBytes;
+
+  /**
    * Total number of records, that were n't able to be written due to errors.
    */
   private long totalWriteErrors;
 
+  /**
+   *
+   */
   /**
    * Relative path to the temporary file from the base path.
    */
@@ -283,6 +291,14 @@ public class HoodieWriteStat implements Serializable {
 
   public void setTotalRollbackBlocks(Long totalRollbackBlocks) {
     this.totalRollbackBlocks = totalRollbackBlocks;
+  }
+
+  public long getFileSizeInBytes() {
+    return fileSizeInBytes;
+  }
+
+  public void setFileSizeInBytes(long fileSizeInBytes) {
+    this.fileSizeInBytes = fileSizeInBytes;
   }
 
   @Nullable

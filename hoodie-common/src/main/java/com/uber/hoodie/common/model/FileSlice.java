@@ -19,6 +19,7 @@
 package com.uber.hoodie.common.model;
 
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -93,6 +94,14 @@ public class FileSlice implements Serializable {
     return Optional.ofNullable(dataFile);
   }
 
+  /**
+   * Returns true if there is no data file and no log files. Happens as part of pending compaction
+   * @return
+   */
+  public boolean isEmpty() {
+    return (dataFile == null) && (logFiles.isEmpty());
+  }
+
   @Override
   public String toString() {
     final StringBuilder sb = new StringBuilder("FileSlice {");
@@ -102,5 +111,25 @@ public class FileSlice implements Serializable {
     sb.append(", logFiles='").append(logFiles).append('\'');
     sb.append('}');
     return sb.toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    FileSlice slice = (FileSlice) o;
+    return Objects.equals(fileGroupId, slice.fileGroupId)
+        && Objects.equals(baseInstantTime, slice.baseInstantTime)
+        && Objects.equals(dataFile, slice.dataFile)
+        && Objects.equals(logFiles, slice.logFiles);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(fileGroupId, baseInstantTime);
   }
 }

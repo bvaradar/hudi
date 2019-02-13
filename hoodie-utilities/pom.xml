@@ -62,6 +62,7 @@
                   <include>com.uber.hoodie:hoodie-spark</include>
                   <include>com.uber.hoodie:hoodie-hive</include>
                   <include>com.uber.hoodie:hoodie-hadoop-mr</include>
+                  <include>com.uber.hoodie:hoodie-timeline</include>
                   <include>com.beust:jcommander</include>
                   <include>com.twitter:bijection-avro_2.11</include>
                   <include>com.twitter:bijection-core_2.11</include>
@@ -72,6 +73,7 @@
                   <include>io.confluent:common-config</include>
                   <include>io.confluent:common-utils</include>
                   <include>io.confluent:kafka-schema-registry-client</include>
+                  <include>io.dropwizard.metrics:metrics-core</include>
                   <include>org.apache.spark:spark-streaming-kafka-0-8_2.11</include>
                   <include>org.apache.kafka:kafka_2.11</include>
                   <include>com.yammer.metrics:metrics-core</include>
@@ -120,6 +122,10 @@
                   <pattern>org.apache.hadoop.hive.service.</pattern>
                   <shadedPattern>com.uber.hoodie.org.apache.hadoop_hive.service.</shadedPattern>
                 </relocation>
+                <relocation>
+                  <pattern>com.codahale.metrics.</pattern>
+                  <shadedPattern>com.uber.hoodie.com.codahale.metrics.</shadedPattern>
+                </relocation>
               </relocations>
             </configuration>
           </execution>
@@ -145,6 +151,16 @@
   </repositories>
 
   <dependencies>
+    <dependency>
+      <groupId>io.javalin</groupId>
+      <artifactId>javalin</artifactId>
+      <version>2.4.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.dropwizard.metrics</groupId>
+      <artifactId>metrics-core</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>com.fasterxml.jackson.module</groupId>

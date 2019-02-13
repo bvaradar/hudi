@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
@@ -51,8 +53,6 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
   private static final Logger log = LogManager.getLogger(DiskBasedMap.class);
   // Stores the key and corresponding value's latest metadata spilled to disk
   private final Map<T, ValueMetadata> valueMetadataMap;
-  // Read only file access to be able to seek to random positions to readFromDisk values
-  private RandomAccessFile readOnlyFileHandle;
   // Write only OutputStream to be able to ONLY append to the file
   private SizeAwareDataOutputStream writeOnlyFileHandle;
   // FileOutputStream for the file handle to be able to force fsync
@@ -60,11 +60,10 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
   private FileOutputStream fileOutputStream;
   // Current position in the file
   private AtomicLong filePosition;
-  // FilePath to store the spilled data
+  // FilePathDTO to store the spilled data
   private String filePath;
 
-
-  protected DiskBasedMap(String baseFilePath) throws IOException {
+  public DiskBasedMap(String baseFilePath) throws IOException {
     this.valueMetadataMap = new HashMap<>();
     File writeOnlyFileHandle = new File(baseFilePath, UUID.randomUUID().toString());
     this.filePath = writeOnlyFileHandle.getPath();
@@ -72,6 +71,22 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
     this.fileOutputStream = new FileOutputStream(writeOnlyFileHandle, true);
     this.writeOnlyFileHandle = new SizeAwareDataOutputStream(fileOutputStream);
     this.filePosition = new AtomicLong(0L);
+  }
+
+  /**
+   * RandomAcessFile is not thread-safe. This API opens a new file handle and returns.
+   * @return
+   */
+  private RandomAccessFile getNewRandomAccessFile()  {
+    // TODO: vbalaji - Currently, every get() from file opens a file-handle, See if there is a need to cache and
+    // reuse file-handles
+    try {
+      RandomAccessFile readHandle = new RandomAccessFile(filePath, "r");
+      readHandle.seek(0);
+      return readHandle;
+    } catch (IOException ioe) {
+      throw new HoodieException(ioe);
+    }
   }
 
   private void initFile(File writeOnlyFileHandle) throws IOException {
@@ -86,9 +101,6 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
     log.info(
         "Spilling to file location " + writeOnlyFileHandle.getAbsolutePath() + " in host (" + InetAddress.getLocalHost()
             .getHostAddress() + ") with hostname (" + InetAddress.getLocalHost().getHostName() + ")");
-    // Open file in readFromDisk-only mode
-    readOnlyFileHandle = new RandomAccessFile(filePath, "r");
-    readOnlyFileHandle.seek(0);
     // Make sure file is deleted when JVM exits
     writeOnlyFileHandle.deleteOnExit();
     addShutDownHook();
@@ -118,8 +130,7 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
    * Custom iterator to iterate over values written to disk
    */
   public Iterator<R> iterator() {
-    return new LazyFileIterable(readOnlyFileHandle,
-        valueMetadataMap).iterator();
+    return new LazyFileIterable(filePath, valueMetadataMap).iterator();
   }
 
   /**
@@ -155,8 +166,31 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
     if (entry == null) {
       return null;
     }
+    return get(entry);
+  }
+
+  private void close(RandomAccessFile file) {
+    if (file != null) {
+      try {
+        file.close();
+      } catch (IOException e) {
+        log.warn("Unable to close read pointer :", e);
+      }
+    }
+  }
+
+  private R get(ValueMetadata entry) {
+    RandomAccessFile file = getNewRandomAccessFile();
     try {
-      return SerializationUtils.deserialize(SpillableMapUtils.readBytesFromDisk(readOnlyFileHandle,
+      return get(entry, file);
+    } finally {
+      close(file);
+    }
+  }
+
+  public static <R> R get(ValueMetadata entry, RandomAccessFile file) {
+    try {
+      return SerializationUtils.deserialize(SpillableMapUtils.readBytesFromDisk(file,
           entry.getOffsetOfValue(), entry.getSizeOfValue()));
     } catch (IOException e) {
       throw new HoodieIOException("Unable to readFromDisk Hoodie Record from disk", e);
@@ -164,7 +198,7 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
   }
 
   @Override
-  public R put(T key, R value) {
+  public synchronized R put(T key, R value) {
     try {
       byte[] val = SerializationUtils.serialize(value);
       Integer valueSize = val.length;
@@ -182,7 +216,7 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
   }
 
   @Override
-  public R remove(Object key) {
+  public  R remove(Object key) {
     R value = get(key);
     valueMetadataMap.remove(key);
     return value;
@@ -215,7 +249,15 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
 
   @Override
   public Collection<R> values() {
-    throw new HoodieException("Unsupported Operation Exception");
+    final RandomAccessFile file = getNewRandomAccessFile();
+    return valueMetadataMap.values().stream().sorted().sequential()
+        .map(valueMetaData -> (R)get(valueMetaData, file)).onClose(() -> close(file)).collect(Collectors.toList());
+  }
+
+  public Stream<R> valueStream() {
+    final RandomAccessFile file = getNewRandomAccessFile();
+    return valueMetadataMap.values().stream().sorted().sequential()
+        .map(valueMetaData -> (R)get(valueMetaData, file)).onClose(() -> close(file));
   }
 
   @Override
@@ -277,9 +319,9 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
     }
   }
 
-  public final class ValueMetadata {
+  public static final class ValueMetadata implements Comparable<ValueMetadata> {
 
-    // FilePath to store the spilled data
+    // FilePathDTO to store the spilled data
     private String filePath;
     // Size (numberOfBytes) of the value written to disk
     private Integer sizeOfValue;
@@ -309,6 +351,11 @@ public final class DiskBasedMap<T extends Serializable, R extends Serializable> 
 
     public long getTimestamp() {
       return timestamp;
+    }
+
+    @Override
+    public int compareTo(ValueMetadata o) {
+      return Long.compare(this.offsetOfValue, o.offsetOfValue);
     }
   }
 }

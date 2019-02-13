@@ -23,6 +23,7 @@ import com.uber.hoodie.common.util.StringUtils;
 import java.io.Serializable;
 import java.util.Optional;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -66,6 +67,8 @@ public interface HoodieTimeline extends Serializable {
       StringUtils.join(".", REQUESTED_COMPACTION_SUFFIX);
   String INFLIGHT_COMPACTION_EXTENSION =
       StringUtils.join(".", COMPACTION_ACTION, INFLIGHT_EXTENSION);
+
+  HoodieInstant INVALID_INSTANT = new HoodieInstant(State.INVALID, "INVALID", "0");
 
   /**
    * Filter this timeline to just include the in-flights
@@ -114,6 +117,11 @@ public interface HoodieTimeline extends Serializable {
   HoodieTimeline findInstantsAfter(String commitTime, int numCommits);
 
   /**
+   * Custom Filter of Instants
+   */
+  HoodieTimeline filter(Predicate<HoodieInstant> filter);
+
+  /**
    * If the timeline has any instants
    *
    * @return true if timeline is empty
@@ -139,6 +147,13 @@ public interface HoodieTimeline extends Serializable {
    * @return last completed instant if available
    */
   Optional<HoodieInstant> lastInstant();
+
+
+  /**
+   * Get hash of timeline
+   * @return
+   */
+  String getTimelineHash();
 
   /**
    * @return nth completed instant going back from the last completed instant

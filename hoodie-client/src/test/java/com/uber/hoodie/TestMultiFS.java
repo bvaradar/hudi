@@ -109,6 +109,7 @@ public class TestMultiFS implements Serializable {
 
     //Create write client to write some records in
     HoodieWriteConfig cfg = HoodieWriteConfig.newBuilder().withPath(dfsBasePath)
+        .withEmbeddedTimelineServerEnabled(true)
         .withSchema(HoodieTestDataGenerator.TRIP_EXAMPLE_SCHEMA).withParallelism(2, 2)
         .forTable(tableName).withIndexConfig(
             HoodieIndexConfig.newBuilder().withIndexType(HoodieIndex.IndexType.BLOOM).build()).build();
@@ -132,7 +133,8 @@ public class TestMultiFS implements Serializable {
     HoodieTableMetaClient
         .initTableType(jsc.hadoopConfiguration(), tablePath, HoodieTableType.valueOf(tableType), tableName,
             HoodieAvroPayload.class.getName());
-    HoodieWriteConfig localConfig = HoodieWriteConfig.newBuilder().withPath(tablePath)
+    HoodieWriteConfig localConfig =
+        HoodieWriteConfig.newBuilder().withPath(tablePath).withEmbeddedTimelineServerEnabled(true)
         .withSchema(HoodieTestDataGenerator.TRIP_EXAMPLE_SCHEMA).withParallelism(2, 2)
         .forTable(tableName).withIndexConfig(
             HoodieIndexConfig.newBuilder().withIndexType(HoodieIndex.IndexType.BLOOM).build()).build();

@@ -16,6 +16,9 @@
 
 package com.uber.hoodie.common.util;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import com.uber.hoodie.exception.HoodieSerializationException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -73,6 +76,38 @@ public class SerializationUtils {
   }
 
   /**
+   * <p>Serializes an {@code Object} to the specified stream using kryo.</p>
+   *
+   * <p>The stream will be closed once the object is written.
+   * This avoids the need for a finally clause, and maybe also exception
+   * handling, in the application code.</p>
+   *
+   * <p>The stream passed in is not buffered internally within this method.
+   * This is the responsibility of your application if desired.</p>
+   *
+   * @param obj the object to serialize to bytes, may be null
+   * @param outputStream the stream to write to, must not be null
+   * @throws IllegalArgumentException if {@code outputStream} is {@code null}
+   * @throws HoodieSerializationException (runtime) if the serialization fails
+   */
+  public static void kryoSerialize(final Kryo kryo, final Serializable obj, final OutputStream outputStream) {
+    if (outputStream == null) {
+      throw new IllegalArgumentException("The OutputStream must not be null");
+    }
+    Output output = new Output(outputStream);
+    try {
+      // stream closed in the finally
+      kryo.writeObject(output, obj);
+    } catch (Exception ex) {
+      throw new HoodieSerializationException("unable to serialize object", ex);
+    } finally {
+      if (output != null) {
+        output.close();
+      }
+    }
+  }
+
+  /**
    * <p>Serializes an {@code Object} to a byte array for
    * storage/serialization.</p>
    *
@@ -83,6 +118,21 @@ public class SerializationUtils {
   public static byte[] serialize(final Serializable obj) {
     final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
     serialize(obj, baos);
+    return baos.toByteArray();
+  }
+
+
+  /**
+   * <p>Serializes an {@code Object} to a byte array for
+   * storage/serialization using kryo.</p>
+   *
+   * @param obj the object to serialize to bytes
+   * @return a byte[] with the converted Serializable
+   * @throws HoodieSerializationException (runtime) if the serialization fails
+   */
+  public static byte[] kryoSerialize(Kryo kryo, final Serializable obj) {
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
+    kryoSerialize(kryo, obj, baos);
     return baos.toByteArray();
   }
 
@@ -147,6 +197,45 @@ public class SerializationUtils {
 
   /**
    * <p>
+   * Deserializes an {@code Object} from the specified stream using kryo
+   * </p>
+   *
+   * <p>
+   * The stream will be closed once the object is written. This avoids the need for a finally clause, and maybe also
+   * exception handling, in the application code.
+   * </p>
+   *
+   * <p>
+   * If the call site incorrectly types the return value, a {@link ClassCastException} is thrown from the call site.
+   * Without Generics in this declaration, the call site must type cast and can cause the same ClassCastException.
+   * Note that in both cases, the ClassCastException is in the call site, not in this method.
+   * </p>
+   *
+   * @param <T> the object type to be deserialized
+   * @param inputStream the serialized object input stream, must not be null
+   * @return the deserialized object
+   * @throws IllegalArgumentException if {@code inputStream} is {@code null}
+   * @throws HoodieSerializationException (runtime) if the serialization fails
+   */
+  public static <T> T kryoDeserialize(final Kryo kryo, final InputStream inputStream, final Class<T> clazz) {
+    if (inputStream == null) {
+      throw new IllegalArgumentException("The InputStream must not be null");
+    }
+    Input in = new Input(inputStream);
+    try {
+      final T obj = (T) kryo.readObject(in, clazz);
+      return obj;
+    } catch (final ClassCastException ex) {
+      throw new HoodieSerializationException("cannot cast class", ex);
+    } finally {
+      if (in != null) {
+        in.close();
+      }
+    }
+  }
+
+  /**
+   * <p>
    * Deserializes a single {@code Object} from an array of bytes.
    * </p>
    *
@@ -167,5 +256,29 @@ public class SerializationUtils {
       throw new IllegalArgumentException("The byte[] must not be null");
     }
     return deserialize(new ByteArrayInputStream(objectData));
+  }
+
+  /**
+   * <p>
+   * Deserializes a single {@code Object} from an array of bytes using kryo.
+   * </p>
+   *
+   * <p>
+   * If the call site incorrectly types the return value, a {@link ClassCastException} is thrown from the call site.
+   * Without Generics in this declaration, the call site must type cast and can cause the same ClassCastException.
+   * Note that in both cases, the ClassCastException is in the call site, not in this method.
+   * </p>
+   *
+   * @param <T> the object type to be deserialized
+   * @param objectData the serialized object, must not be null
+   * @return the deserialized object
+   * @throws IllegalArgumentException if {@code objectData} is {@code null}
+   * @throws HoodieSerializationException (runtime) if the serialization fails
+   */
+  public static <T> T kryoDeserialize(final Kryo kryo, final byte[] objectData, Class<T> clazz) {
+    if (objectData == null) {
+      throw new IllegalArgumentException("The byte[] must not be null");
+    }
+    return kryoDeserialize(kryo, new ByteArrayInputStream(objectData), clazz);
   }
 }

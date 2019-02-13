@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.uber.hoodie.HoodieReadClient;
 import com.uber.hoodie.HoodieWriteClient;
 import com.uber.hoodie.WriteStatus;
 import com.uber.hoodie.common.HoodieClientTestUtils;
@@ -52,7 +53,6 @@ import com.uber.hoodie.config.HoodieStorageConfig;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.hoodie.index.HoodieIndex;
 import com.uber.hoodie.index.HoodieIndex.IndexType;
-import com.uber.hoodie.index.bloom.HoodieBloomIndex;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,7 +82,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestMergeOnReadTable {
 
-  private static String basePath = null;
+  private String basePath = null;
   //NOTE : Be careful in using DFS (FileSystem.class) vs LocalFs(RawLocalFileSystem.class)
   //The implementation and gurantees of many API's differ, for example check rename(src,dst)
   private static MiniDFSCluster dfsCluster;
@@ -661,13 +661,14 @@ public class TestMergeOnReadTable {
     HoodieTableMetaClient metaClient = new HoodieTableMetaClient(jsc.hadoopConfiguration(), basePath);
     HoodieTable table = HoodieTable.getHoodieTable(metaClient, config, jsc);
 
+    HoodieTimeline timeline2 = metaClient.getActiveTimeline();
     newCommitTime = "101";
     writeClient.startCommitWithTime(newCommitTime);
 
     List<HoodieRecord> updatedRecords = dataGen.generateUpdates(newCommitTime, records);
     JavaRDD<HoodieRecord> updatedRecordsRDD = jsc.parallelize(updatedRecords, 1);
-    HoodieIndex index = new HoodieBloomIndex<>(config);
-    updatedRecords = index.tagLocation(updatedRecordsRDD, jsc, table).collect();
+    HoodieReadClient readClient = new HoodieReadClient(jsc, config);
+    updatedRecords = readClient.tagLocation(updatedRecordsRDD).collect();
 
     // Write them to corresponding avro logfiles
     HoodieTestUtils
@@ -1125,7 +1126,8 @@ public class TestMergeOnReadTable {
 
   private HoodieWriteConfig.Builder getConfigBuilder(Boolean autoCommit, HoodieIndex.IndexType indexType) {
     return HoodieWriteConfig.newBuilder().withPath(basePath).withSchema(TRIP_EXAMPLE_SCHEMA).withParallelism(2, 2)
-        .withAutoCommit(autoCommit).withAssumeDatePartitioning(true).withCompactionConfig(
+        .withAutoCommit(autoCommit).withAssumeDatePartitioning(true)
+        .withCompactionConfig(
             HoodieCompactionConfig.newBuilder().compactionSmallFileSize(1024 * 1024 * 1024).withInlineCompaction(false)
                 .withMaxNumDeltaCommitsBeforeCompaction(1).build())
         .withStorageConfig(HoodieStorageConfig.newBuilder().limitFileSize(1024 * 1024 * 1024).build())

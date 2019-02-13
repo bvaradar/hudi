@@ -18,15 +18,17 @@ package com.uber.hoodie.common.util.collection;
 
 import com.twitter.common.objectsize.ObjectSizeCalculator;
 import com.uber.hoodie.common.util.SizeEstimator;
-import com.uber.hoodie.exception.HoodieNotSupportedException;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
@@ -210,7 +212,13 @@ public class ExternalSpillableMap<T extends Serializable, R extends Serializable
     if (diskBasedMap.isEmpty()) {
       return inMemoryMap.values();
     }
-    throw new HoodieNotSupportedException("Cannot return all values in memory");
+    List<R> result = new ArrayList<>(inMemoryMap.values());
+    result.addAll(diskBasedMap.values());
+    return result;
+  }
+
+  public Stream<R> valueStream() {
+    return Stream.concat(inMemoryMap.values().stream(), diskBasedMap.valueStream());
   }
 
   @Override

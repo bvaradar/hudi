@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+import org.apache.hadoop.fs.Path;
 
 /**
  * Encapsulates all the needed information about a compaction and make a decision whether this
@@ -44,6 +46,17 @@ public class CompactionOperation implements Serializable {
   //Only for serialization/de-serialization
   @Deprecated
   public CompactionOperation() {
+  }
+
+  public CompactionOperation(String fileId, String partitionPath, String baseInstantTime,
+      Optional<String> dataFileCommitTime, List<String> deltaFilePaths, Optional<String> dataFilePath,
+      Map<String, Double> metrics) {
+    this.baseInstantTime = baseInstantTime;
+    this.dataFileCommitTime = dataFileCommitTime;
+    this.deltaFilePaths = deltaFilePaths;
+    this.dataFilePath = dataFilePath;
+    this.id = new HoodieFileGroupId(partitionPath, fileId);
+    this.metrics = metrics;
   }
 
   public CompactionOperation(java.util.Optional<HoodieDataFile> dataFile, String partitionPath,
@@ -107,9 +120,44 @@ public class CompactionOperation implements Serializable {
     CompactionOperation op = new CompactionOperation();
     op.baseInstantTime = operation.getBaseInstantTime();
     op.dataFilePath = Optional.fromNullable(operation.getDataFilePath());
+    op.dataFileCommitTime =
+        op.dataFilePath.transform(p -> FSUtils.getCommitTime(new Path(p).getName()));
     op.deltaFilePaths = new ArrayList<>(operation.getDeltaFilePaths());
     op.id = new HoodieFileGroupId(operation.getPartitionPath(), operation.getFileId());
     op.metrics = operation.getMetrics() == null ? new HashMap<>() : new HashMap<>(operation.getMetrics());
     return op;
+  }
+
+  @Override
+  public String toString() {
+    return "CompactionOperation{"
+        + "baseInstantTime='" + baseInstantTime + '\''
+        + ", dataFileCommitTime=" + dataFileCommitTime
+        + ", deltaFilePaths=" + deltaFilePaths
+        + ", dataFilePath=" + dataFilePath
+        + ", id='" + id + '\''
+        + ", metrics=" + metrics
+        + '}';
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    CompactionOperation operation = (CompactionOperation) o;
+    return Objects.equals(baseInstantTime, operation.baseInstantTime)
+        && Objects.equals(dataFileCommitTime, operation.dataFileCommitTime)
+        && Objects.equals(deltaFilePaths, operation.deltaFilePaths)
+        && Objects.equals(dataFilePath, operation.dataFilePath)
+        && Objects.equals(id, operation.id);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(baseInstantTime, id);
   }
 }

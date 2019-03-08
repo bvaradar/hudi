@@ -96,7 +96,11 @@ public class HoodieLogFile implements Serializable {
     return fileStatus;
   }
 
-  public HoodieLogFile rollOver(FileSystem fs) throws IOException {
+  public void setFileStatus(FileStatus fileStatus) {
+    this.fileStatus = fileStatus;
+  }
+
+  public HoodieLogFile rollOver(FileSystem fs, String logWriteToken) throws IOException {
     String fileId = getFileId();
     String baseCommitTime = getBaseCommitTime();
     Path path = getPath();
@@ -105,7 +109,7 @@ public class HoodieLogFile implements Serializable {
         .computeNextLogVersion(fs, path.getParent(), fileId,
             extension, baseCommitTime);
     return new HoodieLogFile(new Path(path.getParent(),
-        FSUtils.makeLogFileName(fileId, extension, baseCommitTime, newVersion)));
+        FSUtils.makeLogFileName(fileId, extension, baseCommitTime, newVersion, logWriteToken)));
   }
 
   public static Comparator<HoodieLogFile> getBaseInstantAndLogVersionComparator() {

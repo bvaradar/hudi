@@ -19,6 +19,7 @@ package com.uber.hoodie.common.table.log;
 import com.uber.hoodie.common.model.HoodieLogFile;
 import com.uber.hoodie.common.table.log.block.HoodieLogBlock;
 import com.uber.hoodie.common.util.FSUtils;
+import com.uber.hoodie.common.util.collection.Pair;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
@@ -56,6 +57,8 @@ public interface HoodieLogFormat {
    * bumped and corresponding changes need to be made to {@link HoodieLogFormatVersion}
    */
   int currentVersion = 1;
+
+  String UNKNOWN_WRITE_TOKEN = "1-0-1";
 
   /**
    * Writer interface to allow appending block to this file format
@@ -115,6 +118,8 @@ public interface HoodieLogFormat {
     private Integer logVersion;
     // Location of the directory containing the log
     private Path parentPath;
+    // Log File Write Token
+    private String logWriteToken;
 
     public WriterBuilder withBufferSize(int bufferSize) {
       this.bufferSize = bufferSize;
@@ -123,6 +128,11 @@ public interface HoodieLogFormat {
 
     public WriterBuilder withReplication(short replication) {
       this.replication = replication;
+      return this;
+    }
+
+    public WriterBuilder withLogWriteToken(String writeToken) {
+      this.logWriteToken = writeToken;
       return this;
     }
 
@@ -178,17 +188,24 @@ public interface HoodieLogFormat {
       if (parentPath == null) {
         throw new IllegalArgumentException("Log file parent location is not specified");
       }
+
       if (logVersion == null) {
         log.info("Computing the next log version for " + logFileId + " in " + parentPath);
-        logVersion =
-            FSUtils.getCurrentLogVersion(fs, parentPath, logFileId, fileExtension, commitTime);
+        Pair<Integer, String> versionAndWriteToken =
+            FSUtils.getCurrentLogVersionAndWriteToken(fs, parentPath, logFileId, fileExtension, commitTime);
+        logVersion = versionAndWriteToken.getKey();
+        logWriteToken = versionAndWriteToken.getValue();
         log.info(
             "Computed the next log version for " + logFileId + " in " + parentPath + " as "
-                + logVersion);
+                + logVersion + " with write-token " + logWriteToken);
+      }
+
+      if (logWriteToken == null) {
+        logWriteToken = UNKNOWN_WRITE_TOKEN;
       }
 
       Path logPath = new Path(parentPath,
-          FSUtils.makeLogFileName(logFileId, fileExtension, commitTime, logVersion));
+          FSUtils.makeLogFileName(logFileId, fileExtension, commitTime, logVersion, logWriteToken));
       log.info("HoodieLogFile on path " + logPath);
       HoodieLogFile logFile = new HoodieLogFile(logPath);
 
@@ -201,7 +218,7 @@ public interface HoodieLogFormat {
       if (sizeThreshold == null) {
         sizeThreshold = DEFAULT_SIZE_THRESHOLD;
       }
-      return new HoodieLogFormatWriter(fs, logFile, bufferSize, replication, sizeThreshold);
+      return new HoodieLogFormatWriter(fs, logFile, bufferSize, replication, sizeThreshold, logWriteToken);
     }
 
   }

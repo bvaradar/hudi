@@ -32,8 +32,10 @@ import com.uber.hoodie.common.table.log.HoodieLogFormat.Writer;
 import com.uber.hoodie.common.table.log.block.HoodieAvroDataBlock;
 import com.uber.hoodie.common.table.log.block.HoodieDeleteBlock;
 import com.uber.hoodie.common.table.log.block.HoodieLogBlock;
+import com.uber.hoodie.common.util.FSUtils;
 import com.uber.hoodie.common.util.HoodieAvroUtils;
 import com.uber.hoodie.common.util.Option;
+import com.uber.hoodie.common.util.collection.Pair;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.hoodie.exception.HoodieAppendException;
 import com.uber.hoodie.exception.HoodieUpsertException;
@@ -45,7 +47,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
@@ -96,14 +97,14 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieIOH
 
   public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable,
       String fileId, Iterator<HoodieRecord<T>> recordItr) {
-    super(config, commitTime, hoodieTable);
+    super(config, commitTime, fileId, hoodieTable);
     writeStatus.setStat(new HoodieDeltaWriteStat());
     this.fileId = fileId;
     this.recordItr = recordItr;
   }
 
-  public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable) {
-    this(config, commitTime, hoodieTable, UUID.randomUUID().toString(), null);
+  public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable, String fileId) {
+    this(config, commitTime, hoodieTable, fileId, null);
   }
 
   private void init(HoodieRecord record) {
@@ -270,12 +271,17 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieIOH
 
   private Writer createLogWriter(Option<FileSlice> fileSlice, String baseCommitTime)
       throws IOException, InterruptedException {
+    Optional<Pair<Integer, HoodieLogFile>> latestLogFile =
+        fileSlice.get().getLogFiles().map(logFile -> Pair.of(logFile.getLogVersion(), logFile))
+        .max(Comparator.comparingInt(Pair::getKey));
+
     return HoodieLogFormat.newWriterBuilder()
         .onParentPath(new Path(hoodieTable.getMetaClient().getBasePath(), partitionPath))
         .withFileId(fileId).overBaseCommit(baseCommitTime).withLogVersion(
-            fileSlice.get().getLogFiles().map(logFile -> logFile.getLogVersion())
-                .max(Comparator.naturalOrder()).orElse(HoodieLogFile.LOGFILE_BASE_VERSION))
+            latestLogFile.map(Pair::getKey).orElse(HoodieLogFile.LOGFILE_BASE_VERSION))
         .withSizeThreshold(config.getLogFileMaxSize()).withFs(fs)
+        .withLogWriteToken(
+            latestLogFile.map(x -> FSUtils.getWriteTokenFromLogPath(x.getRight().getPath())).orElse(writeToken))
         .withFileExtension(HoodieLogFile.DELTA_EXTENSION).build();
   }
 

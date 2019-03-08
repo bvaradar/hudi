@@ -143,6 +143,22 @@ public class HoodieTableMetaClient implements Serializable {
   }
 
   /**
+   * @return Temp Folder path
+   */
+  public String getTempFolderPath() {
+    return basePath + File.separator + TEMPFOLDER_NAME;
+  }
+
+  /**
+   *  Returns Marker folder path
+    * @param instantTs Instant Timestamp
+   * @return
+   */
+  public String getMarkerFolderPath(String instantTs) {
+    return String.format("%s%s%s", getTempFolderPath(), File.separator, instantTs);
+  }
+
+  /**
    * @return Auxiliary Meta path
    */
   public String getMetaAuxiliaryPath() {

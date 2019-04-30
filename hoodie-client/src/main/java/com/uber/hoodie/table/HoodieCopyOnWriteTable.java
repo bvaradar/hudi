@@ -390,7 +390,7 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
     // Remove the rolled back inflight commits
     if (deleteInstant) {
       try {
-        //TODO: Cleanup Hoodie 1.0 rollback to simply call super.rollbackFailedWrites with consistency check disabled
+        //TODO: Cleanup Hoodie 1.0 rollback to simply call super.cleanFailedWrites with consistency check disabled
         // and empty WriteStat list.
         Path markerDir = new Path(metaClient.getMarkerFolderPath(instantToBeDeleted.getTimestamp()));
         logger.info("Removing marker directory=" + markerDir);

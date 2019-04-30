@@ -16,6 +16,8 @@
 
 package com.uber.hoodie.common.util;
 
+import static com.uber.hoodie.common.table.HoodieTableMetaClient.MARKER_EXTN;
+
 import com.google.common.base.Preconditions;
 import com.uber.hoodie.common.model.HoodieLogFile;
 import com.uber.hoodie.common.model.HoodiePartitionMetadata;
@@ -63,8 +65,6 @@ public class FSUtils {
   private static final long MIN_CLEAN_TO_KEEP = 10;
   private static final long MIN_ROLLBACK_TO_KEEP = 10;
   private static final String HOODIE_ENV_PROPS_PREFIX = "HOODIE_ENV_";
-
-  public static final String MARKER_EXTN = ".marker";
 
 
   public static Configuration prepareHadoopConf(Configuration conf) {

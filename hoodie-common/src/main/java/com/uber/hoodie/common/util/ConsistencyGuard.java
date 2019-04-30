@@ -29,6 +29,14 @@ import org.apache.hadoop.fs.Path;
 public interface ConsistencyGuard {
 
   /**
+   * File Visibility
+   */
+  enum FileVisibility {
+    APPEAR,
+    DISAPPEAR,
+  }
+
+  /**
    * Wait for file to be listable based on configurable timeout
    * @param filePath
    * @throws IOException when having trouble listing the path
@@ -53,4 +61,29 @@ public interface ConsistencyGuard {
    * Wait till all passed files belonging to a directory disappears from listing
    */
   void waitTillAllFilesDisappear(String dirPath, List<String> files) throws IOException, TimeoutException;
+
+
+  /**
+   * Wait Till target visibility is reached
+   * @param dirPath  Directory Path
+   * @param files    Files
+   * @param targetVisibility Target Visibitlity
+   * @throws IOException
+   * @throws TimeoutException
+   */
+  default void waitTill(String dirPath, List<String> files, FileVisibility targetVisibility)
+      throws IOException, TimeoutException {
+    switch (targetVisibility) {
+      case APPEAR: {
+        waitTillAllFilesAppear(dirPath, files);
+        break;
+      }
+      case DISAPPEAR: {
+        waitTillAllFilesDisappear(dirPath, files);
+        break;
+      }
+      default:
+        throw new IllegalStateException("Unknown File Visibility");
+    }
+  }
 }

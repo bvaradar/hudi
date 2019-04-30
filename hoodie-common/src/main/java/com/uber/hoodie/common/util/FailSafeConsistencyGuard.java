@@ -73,14 +73,6 @@ public class FailSafeConsistencyGuard implements ConsistencyGuard {
   }
 
   /**
-   * File Visibility
-   */
-  private enum FileVisibility {
-    APPEAR,
-    DISAPPEAR,
-  }
-
-  /**
    * Helper function to wait for all files belonging to single directory to appear
    * @param dirPath Dir Path
    * @param files Files to appear/disappear

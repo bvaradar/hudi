@@ -35,6 +35,7 @@ import com.uber.hoodie.common.table.view.FileSystemViewManager;
 import com.uber.hoodie.common.table.view.HoodieTableFileSystemView;
 import com.uber.hoodie.common.util.AvroUtils;
 import com.uber.hoodie.common.util.ConsistencyGuard;
+import com.uber.hoodie.common.util.ConsistencyGuard.FileVisibility;
 import com.uber.hoodie.common.util.FSUtils;
 import com.uber.hoodie.common.util.collection.Pair;
 import com.uber.hoodie.config.HoodieWriteConfig;
@@ -287,7 +288,7 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
    */
   public void finalizeWrite(JavaSparkContext jsc, String instantTs, List<HoodieWriteStat> stats)
       throws HoodieIOException {
-    rollbackFailedWrites(jsc, instantTs, stats, config.isConsistencyCheckEnabled());
+    cleanFailedWrites(jsc, instantTs, stats, config.isConsistencyCheckEnabled());
   }
 
   /**
@@ -300,7 +301,7 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
    * @param consistencyCheckEnabled  Consistency Check Enabled
    * @throws HoodieIOException
    */
-  protected void rollbackFailedWrites(JavaSparkContext jsc, String instantTs, List<HoodieWriteStat> stats,
+  protected void cleanFailedWrites(JavaSparkContext jsc, String instantTs, List<HoodieWriteStat> stats,
       boolean consistencyCheckEnabled) throws HoodieIOException {
     try {
       // Reconcile marker and data files with WriteStats so that partially written data-files due to failed
@@ -331,23 +332,10 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
         if (consistencyCheckEnabled) {
           // This will either ensure all files to be deleted are present.
           boolean checkPassed =
-              jsc.parallelize(new ArrayList<>(groupByPartition.values()), config.getFinalizeWriteParallelism())
-                  .map(partitionWithFileList -> {
-                    final FileSystem fileSystem = metaClient.getFs();
-                    if (partitionWithFileList.isEmpty()) {
-                      return true;
-                    }
-                    String partitionPath = partitionWithFileList.get(0).getKey();
-                    List<String> fileList = partitionWithFileList.stream().map(Pair::getValue)
-                        .collect(Collectors.toList());
-                    try {
-                      getFailSafeConsistencyGuard(fileSystem).waitTillAllFilesAppear(partitionPath, fileList);
-                    } catch (IOException | TimeoutException ioe) {
-                      logger.error("Got exception while waiting for files to show up", ioe);
-                      return false;
-                    }
-                    return true;
-                  }).collect().stream().allMatch(x -> x);
+              jsc.parallelize(new ArrayList<>(groupByPartition.entrySet()), config.getFinalizeWriteParallelism())
+                  .map(partitionWithFileList -> waitForCondition(partitionWithFileList.getKey(),
+                      partitionWithFileList.getValue().stream(), FileVisibility.APPEAR))
+                  .collect().stream().allMatch(x -> x);
           if (!checkPassed) {
             throw new HoodieIOException("Consistency check failed to ensure all files are present");
           }
@@ -377,23 +365,11 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
         if (consistencyCheckEnabled) {
           // This will either ensure all files to be deleted are absent.
           boolean checkPassed =
-              jsc.parallelize(new ArrayList<>(groupByPartition.values()),
-                  config.getFinalizeWriteParallelism()).map(partitionWithFileList -> {
-                    final FileSystem fileSystem = metaClient.getFs();
-                    if (partitionWithFileList.isEmpty()) {
-                      return true;
-                    }
-                    String partitionPath = partitionWithFileList.get(0).getKey();
-                    List<String> fileList = partitionWithFileList.stream().map(Pair::getValue)
-                        .collect(Collectors.toList());
-                    try {
-                      getFailSafeConsistencyGuard(fileSystem).waitTillAllFilesDisappear(partitionPath, fileList);
-                    } catch (IOException | TimeoutException ioe) {
-                      logger.error("Got exception while waiting for files to disappear", ioe);
-                      return false;
-                    }
-                    return true;
-                  }).collect().stream().allMatch(x -> x);
+              jsc.parallelize(new ArrayList<>(groupByPartition.entrySet()),
+                  config.getFinalizeWriteParallelism())
+                  .map(partitionWithFileList -> waitForCondition(partitionWithFileList.getKey(),
+                      partitionWithFileList.getValue().stream(), FileVisibility.DISAPPEAR))
+                  .collect().stream().allMatch(x -> x);
 
           if (!checkPassed) {
             throw new HoodieIOException("Consistency check failed to ensure all files are present");
@@ -409,6 +385,19 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
     } catch (IOException ioe) {
       throw new HoodieIOException(ioe.getMessage(), ioe);
     }
+  }
+
+  private boolean waitForCondition(String partitionPath, Stream<Pair<String, String>> partitionFilePaths,
+      FileVisibility visibility) {
+    final FileSystem fileSystem = metaClient.getFs();
+    List<String> fileList = partitionFilePaths.map(Pair::getValue).collect(Collectors.toList());
+    try {
+      getFailSafeConsistencyGuard(fileSystem).waitTill(partitionPath, fileList, visibility);
+    } catch (IOException | TimeoutException ioe) {
+      logger.error("Got exception while waiting for files to show up", ioe);
+      return false;
+    }
+    return true;
   }
 
   private ConsistencyGuard getFailSafeConsistencyGuard(FileSystem fileSystem) {

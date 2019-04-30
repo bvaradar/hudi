@@ -16,7 +16,7 @@
 
 package com.uber.hoodie;
 
-import static com.uber.hoodie.common.util.FSUtils.MARKER_EXTN;
+import static com.uber.hoodie.common.table.HoodieTableMetaClient.MARKER_EXTN;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

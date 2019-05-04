@@ -331,14 +331,7 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
         // Otherwise, we may miss deleting such files. If files are not found even after retries, fail the commit
         if (consistencyCheckEnabled) {
           // This will either ensure all files to be deleted are present.
-          boolean checkPassed =
-              jsc.parallelize(new ArrayList<>(groupByPartition.entrySet()), config.getFinalizeWriteParallelism())
-                  .map(partitionWithFileList -> waitForCondition(partitionWithFileList.getKey(),
-                      partitionWithFileList.getValue().stream(), FileVisibility.APPEAR))
-                  .collect().stream().allMatch(x -> x);
-          if (!checkPassed) {
-            throw new HoodieIOException("Consistency check failed to ensure all files are present");
-          }
+          waitForAllFiles(jsc, groupByPartition, FileVisibility.APPEAR);
         }
 
         // Now delete partially written files
@@ -364,16 +357,7 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
         // Now ensure the deleted files disappear
         if (consistencyCheckEnabled) {
           // This will either ensure all files to be deleted are absent.
-          boolean checkPassed =
-              jsc.parallelize(new ArrayList<>(groupByPartition.entrySet()),
-                  config.getFinalizeWriteParallelism())
-                  .map(partitionWithFileList -> waitForCondition(partitionWithFileList.getKey(),
-                      partitionWithFileList.getValue().stream(), FileVisibility.DISAPPEAR))
-                  .collect().stream().allMatch(x -> x);
-
-          if (!checkPassed) {
-            throw new HoodieIOException("Consistency check failed to ensure all files are present");
-          }
+          waitForAllFiles(jsc, groupByPartition, FileVisibility.DISAPPEAR);
         }
       }
       // Now delete the marker directory
@@ -384,6 +368,25 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
       }
     } catch (IOException ioe) {
       throw new HoodieIOException(ioe.getMessage(), ioe);
+    }
+  }
+
+  /**
+   * Ensures all files passed either appear or disappear
+   * @param jsc   JavaSparkContext
+   * @param groupByPartition Files grouped by partition
+   * @param visibility Appear/Disappear
+   */
+  private void waitForAllFiles(JavaSparkContext jsc, Map<String, List<Pair<String, String>>> groupByPartition,
+      FileVisibility visibility) {
+    // This will either ensure all files to be deleted are present.
+    boolean checkPassed =
+        jsc.parallelize(new ArrayList<>(groupByPartition.entrySet()), config.getFinalizeWriteParallelism())
+            .map(partitionWithFileList -> waitForCondition(partitionWithFileList.getKey(),
+                partitionWithFileList.getValue().stream(), visibility))
+            .collect().stream().allMatch(x -> x);
+    if (!checkPassed) {
+      throw new HoodieIOException("Consistency check failed to ensure all files " + visibility);
     }
   }
 

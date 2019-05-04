@@ -115,6 +115,11 @@ public abstract class HoodieIOHandle<T extends HoodieRecordPayload> {
     }
   }
 
+  /**
+   * THe marker path will be  <base-path>/.hoodie/.temp/<instant_ts>/2019/04/25/filename
+   * @param partitionPath
+   * @return
+   */
   private Path makeNewMarkerPath(String partitionPath) {
     Path markerRootPath = new Path(hoodieTable.getMetaClient().getMarkerFolderPath(commitTime));
     Path path = FSUtils.getPartitionPath(markerRootPath, partitionPath);

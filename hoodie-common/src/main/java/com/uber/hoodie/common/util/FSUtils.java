@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -216,7 +217,7 @@ public class FSUtils {
 
   public static final List<String> getAllDataFilesForMarkers(FileSystem fs, String basePath, String instantTs,
       String markerDir) throws IOException {
-    List<String> dataFiles = new ArrayList<>();
+    List<String> dataFiles = new LinkedList<>();
     FSUtils.processFiles(fs, markerDir, (status) -> {
       String pathStr = status.getPath().toString();
       if (pathStr.endsWith(MARKER_EXTN)) {

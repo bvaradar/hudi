@@ -1,6 +1,7 @@
 package com.uber.hoodie.utilities.schema;
 
 import com.uber.hoodie.AvroConversionUtils;
+import com.uber.hoodie.common.util.HoodieAvroUtils;
 import org.apache.avro.Schema;
 import org.apache.spark.sql.types.StructType;
 
@@ -19,7 +20,8 @@ public class RowBasedSchemaProvider extends SchemaProvider {
 
   @Override
   public Schema getSourceSchema() {
-    return AvroConversionUtils.convertStructTypeToAvroSchema(rowStruct, HOODIE_RECORD_STRUCT_NAME,
-        HOODIE_RECORD_NAMESPACE);
+    return HoodieAvroUtils.getSchemaWithLowerCaseFieldNames(
+        AvroConversionUtils.convertStructTypeToAvroSchema(rowStruct, HOODIE_RECORD_STRUCT_NAME,
+            HOODIE_RECORD_NAMESPACE));
   }
 }

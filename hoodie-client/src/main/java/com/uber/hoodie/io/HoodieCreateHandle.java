@@ -164,7 +164,7 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload> extends HoodieIOH
       long fileSizeInBytes = FSUtils.getFileSize(fs, path);
       stat.setTotalWriteBytes(fileSizeInBytes);
       stat.setFileSizeInBytes(fileSizeInBytes);
-      stat.setTotalWriteErrors(writeStatus.getFailedRecords().size());
+      stat.setTotalWriteErrors(writeStatus.getTotalErrorRecords());
       RuntimeStats runtimeStats = new RuntimeStats();
       runtimeStats.setTotalCreateTime(timer.endTimer());
       stat.setRuntimeStats(runtimeStats);

@@ -233,9 +233,17 @@ public abstract class HoodieLogBlock {
       inputStream.readFully(content, 0, contentLength);
     } else {
       // Seek to the end of the content block
-      inputStream.seek(inputStream.getPos() + contentLength);
+      safeSeek(inputStream, inputStream.getPos() + contentLength);
     }
     return content;
+  }
+
+  private static void safeSeek(FSDataInputStream inputStream, long pos) throws IOException {
+    try {
+      inputStream.seek(pos);
+    } catch (EOFException e) {
+      inputStream.seek(pos - 1);
+    }
   }
 
   /**
@@ -247,7 +255,7 @@ public abstract class HoodieLogBlock {
       content = Optional.of(new byte[(int) this.getBlockContentLocation().get().getBlockSize()]);
       inputStream.seek(this.getBlockContentLocation().get().getContentPositionInLogFile());
       inputStream.readFully(content.get(), 0, content.get().length);
-      inputStream.seek(this.getBlockContentLocation().get().getBlockEndPos());
+      safeSeek(inputStream, this.getBlockContentLocation().get().getBlockEndPos());
     } catch (IOException e) {
       try {
         // TODO : fs.open() and return inputstream again, need to pass FS configuration

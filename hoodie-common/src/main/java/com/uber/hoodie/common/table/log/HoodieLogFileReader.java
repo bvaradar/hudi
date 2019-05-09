@@ -120,16 +120,18 @@ class HoodieLogFileReader implements HoodieLogFormat.Reader {
     int type = -1;
     HoodieLogBlockType blockType = null;
     Map<HeaderMetadataType, String> header = null;
-
+    log.debug("Before reading BLOCK SIZE. CurrPos :" + inputStream.getPos());
     try {
       // 1 Read the total size of the block
       blocksize = (int) inputStream.readLong();
     } catch (EOFException | CorruptedLogFileException e) {
+      log.debug("Got exception trying to read block size. Creating corrupt block:", e);
       // An exception reading any of the above indicates a corrupt block
       // Create a corrupt block by finding the next MAGIC marker or EOF
       return createCorruptBlock();
     }
 
+    log.debug("BLOCK SIZE was :" + blocksize);
     // We may have had a crash which could have written this block partially
     // Skip blocksize in the stream and we should either find a sync marker (start of the next
     // block) or EOF. If we did not find either of it, then this block is a corrupted block.
@@ -226,13 +228,15 @@ class HoodieLogFileReader implements HoodieLogFormat.Reader {
   private boolean isBlockCorrupt(int blocksize) throws IOException {
     long currentPos = inputStream.getPos();
     try {
-      inputStream.seek(currentPos + blocksize);
+      log.debug("Curr Pos :" + currentPos + ", Seeking to pos " + (currentPos + blocksize - 1));
+      inputStream.seek(currentPos + blocksize - 1);
     } catch (EOFException e) {
       // this is corrupt
       // This seek is required because contract of seek() is different for naked DFSInputStream vs BufferedFSInputStream
       // release-3.1.0-RC1/DFSInputStream.java#L1455
       // release-3.1.0-RC1/BufferedFSInputStream.java#L73
       inputStream.seek(currentPos);
+      log.debug("Block is corrupt. GOT EOF Exception. currentPos + blocksize=" + (currentPos + blocksize), e);
       return true;
     }
 

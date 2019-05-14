@@ -273,6 +273,11 @@ public class HoodieWrapperFileSystem extends FileSystem {
 
   @Override
   public FileStatus getFileStatus(Path f) throws IOException {
+    try {
+      consistencyGuard.waitTillFileAppears(convertToDefaultPath(f));
+    } catch (TimeoutException e) {
+      // pass
+    }
     return fileSystem.getFileStatus(convertToDefaultPath(f));
   }
 

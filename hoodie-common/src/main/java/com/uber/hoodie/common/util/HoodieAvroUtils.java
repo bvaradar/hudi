@@ -93,34 +93,6 @@ public class HoodieAvroUtils {
   }
 
   /**
-   * Schema with field names converted to lower-case. Spark Row based schema generator creates
-   * schema with field names in upper-case. In the case of HoodieDeltaStreamer, we pass this generated schema
-   * as reader schema for reading old parquet files (to be merged). But AvroParquet reader used in MergeHandle
-   * expects the schema to be lower-case. For uniform handling, converting the schema to lowercase field names
-   *
-   * @param schema Schema
-   * @return
-   */
-  public static Schema getSchemaWithLowerCaseFieldNames(Schema schema) {
-    List<Schema.Field> parentFields = new ArrayList<>();
-    for (Schema.Field field : schema.getFields()) {
-      if (!isMetadataField(field.name())) {
-        Schema.Field newField = new Schema.Field(field.name().toLowerCase(), field.schema(), field.doc(), null);
-        for (Map.Entry<String, JsonNode> prop : field.getJsonProps().entrySet()) {
-          newField.addProp(prop.getKey(), prop.getValue());
-        }
-        parentFields.add(newField);
-      }
-    }
-
-    Schema lowerCaseSchema = Schema
-        .createRecord(schema.getName().toLowerCase(), schema.getDoc(),
-            schema.getNamespace() != null ? schema.getNamespace().toLowerCase() : null, false);
-    lowerCaseSchema.setFields(parentFields);
-    return lowerCaseSchema;
-  }
-
-  /**
    * Adds the Hoodie metadata fields to the given schema
    */
   public static Schema addMetadataFields(Schema schema) {

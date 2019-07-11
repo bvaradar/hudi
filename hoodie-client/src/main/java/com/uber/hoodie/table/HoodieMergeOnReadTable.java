@@ -513,14 +513,10 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
                 .withFileId(wStat.getFileId()).overBaseCommit(baseCommitTime)
                 .withFs(this.metaClient.getFs())
                 .withFileExtension(HoodieLogFile.DELTA_EXTENSION).build();
-            Long numRollbackBlocks = 0L;
             // generate metadata
             Map<HeaderMetadataType, String> header = generateHeader(commit);
             // if update belongs to an existing log file
             writer = writer.appendBlock(new HoodieCommandBlock(header));
-            numRollbackBlocks++;
-            filesToNumBlocksRollback.put(this.getMetaClient().getFs()
-                .getFileStatus(writer.getLogFile().getPath()), numRollbackBlocks);
           } catch (IOException | InterruptedException io) {
             throw new HoodieRollbackException(
                 "Failed to rollback for commit " + commit, io);
@@ -528,6 +524,8 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
             try {
               if (writer != null) {
                 writer.close();
+                filesToNumBlocksRollback.put(this.getMetaClient().getFs()
+                    .getFileStatus(writer.getLogFile().getPath()), 1L);
               }
             } catch (IOException io) {
               throw new UncheckedIOException(io);

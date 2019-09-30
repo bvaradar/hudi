@@ -71,7 +71,7 @@ public class HoodieTableMetaClientTest {
     assertNotNull(deseralizedMetaClient);
     HoodieActiveTimeline commitTimeline = deseralizedMetaClient.getActiveTimeline();
     HoodieInstant instant = new HoodieInstant(true, HoodieTimeline.COMMIT_ACTION, "1");
-    commitTimeline.createInflight(instant);
+    commitTimeline.createNewInstant(instant);
     commitTimeline.saveAsComplete(instant, Option.of("test-detail".getBytes()));
     commitTimeline = commitTimeline.reload();
     HoodieInstant completedInstant = HoodieTimeline.getCompletedInstant(instant);
@@ -87,7 +87,7 @@ public class HoodieTableMetaClientTest {
     assertTrue("Should be empty commit timeline", activeCommitTimeline.empty());
 
     HoodieInstant instant = new HoodieInstant(true, HoodieTimeline.COMMIT_ACTION, "1");
-    activeTimeline.createInflight(instant);
+    activeTimeline.createNewInstant(instant);
     activeTimeline.saveAsComplete(instant, Option.of("test-detail".getBytes()));
 
     // Commit timeline should not auto-reload every time getActiveCommitTimeline(), it should be cached

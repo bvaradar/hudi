@@ -20,7 +20,6 @@ package org.apache.hudi.table;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -54,6 +53,7 @@ import org.apache.hudi.common.table.log.block.HoodieCommandBlock.HoodieCommandBl
 import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
+import org.apache.hudi.common.table.timeline.HoodieInstant.State;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieWriteConfig;
@@ -175,149 +175,154 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
   }
 
   @Override
-  public List<HoodieRollbackStat> rollback(JavaSparkContext jsc, String commit, boolean deleteInstants)
-      throws IOException {
+  public List<HoodieRollbackStat> rollback(JavaSparkContext jsc, HoodieInstant instant,
+      boolean deleteInstants) throws IOException {
 
+    String commit = instant.getTimestamp();
+
+    // Atomically un-publish all non-inflight commits
+    if (!instant.isInflight()) {
+      logger.info("Un-publishing instant " + instant);
+      this.getActiveTimeline().revertToInflight(instant);
+      // Mark as inflight
+      instant = new HoodieInstant(State.INFLIGHT, instant.getAction(),
+          instant.getTimestamp());
+    }
+
+    final HoodieInstant instantToRollback = instant;
     // At the moment, MOR table type does not support bulk nested rollbacks. Nested rollbacks is an experimental
     // feature that is expensive. To perform nested rollbacks, initiate multiple requests of client.rollback
     // (commitToRollback).
     // NOTE {@link HoodieCompactionConfig#withCompactionLazyBlockReadEnabled} needs to be set to TRUE. This is
     // required to avoid OOM when merging multiple LogBlocks performed during nested rollbacks.
     // Atomically un-publish all non-inflight commits
-    Option<HoodieInstant> commitOrCompactionOption = Option.fromJavaOptional(this.getActiveTimeline()
-        .getTimelineOfActions(Sets.newHashSet(HoodieActiveTimeline.COMMIT_ACTION,
-            HoodieActiveTimeline.DELTA_COMMIT_ACTION, HoodieActiveTimeline.COMPACTION_ACTION)).getInstants()
-        .filter(i -> commit.equals(i.getTimestamp()))
-        .findFirst());
-    HoodieInstant instantToRollback = commitOrCompactionOption.get();
-    // Atomically un-publish all non-inflight commits
-    if (!instantToRollback.isInflight()) {
-      this.getActiveTimeline().revertToInflight(instantToRollback);
-    }
-    logger.info("Unpublished " + commit);
     Long startTime = System.currentTimeMillis();
-    List<HoodieRollbackStat> allRollbackStats = jsc.parallelize(FSUtils
-        .getAllPartitionPaths(this.metaClient.getFs(), this.getMetaClient().getBasePath(),
-            config.shouldAssumeDatePartitioning()))
-        .map((Function<String, HoodieRollbackStat>) partitionPath -> {
-          HoodieActiveTimeline activeTimeline = this.getActiveTimeline().reload();
-          HoodieRollbackStat hoodieRollbackStats = null;
-          // Need to put the path filter here since Filter is not serializable
-          // PathFilter to get all parquet files and log files that need to be deleted
-          PathFilter filter = (path) -> {
-            if (path.toString().contains(".parquet")) {
-              String fileCommitTime = FSUtils.getCommitTime(path.getName());
-              return commit.equals(fileCommitTime);
-            } else if (path.toString().contains(".log")) {
-              // Since the baseCommitTime is the only commit for new log files, it's okay here
-              String fileCommitTime = FSUtils.getBaseCommitTimeFromLogPath(path);
-              return commit.equals(fileCommitTime);
-            }
-            return false;
-          };
-
-          final Map<FileStatus, Boolean> filesToDeletedStatus = new HashMap<>();
-
-          switch (instantToRollback.getAction()) {
-            case HoodieTimeline.COMMIT_ACTION:
-              try {
-                // Rollback of a commit should delete the newly created parquet files along with any log
-                // files created with this as baseCommit. This is required to support multi-rollbacks in a MOR table.
-                super.deleteCleanedFiles(filesToDeletedStatus, partitionPath, filter);
-                hoodieRollbackStats = HoodieRollbackStat.newBuilder()
-                    .withPartitionPath(partitionPath).withDeletedFileResults(filesToDeletedStatus).build();
-                break;
-              } catch (IOException io) {
-                throw new UncheckedIOException("Failed to rollback for commit " + commit, io);
+    List<HoodieRollbackStat> allRollbackStats = new ArrayList<>();
+    // For Requested State (like failure during index lookup), there is nothing to do rollback other than
+    // deleting the timeline file
+    if (!instantToRollback.isRequested()) {
+      allRollbackStats = jsc.parallelize(FSUtils
+          .getAllPartitionPaths(this.metaClient.getFs(), this.getMetaClient().getBasePath(),
+              config.shouldAssumeDatePartitioning()))
+          .map((Function<String, HoodieRollbackStat>) partitionPath -> {
+            HoodieActiveTimeline activeTimeline = this.getActiveTimeline().reload();
+            HoodieRollbackStat hoodieRollbackStats = null;
+            // Need to put the path filter here since Filter is not serializable
+            // PathFilter to get all parquet files and log files that need to be deleted
+            PathFilter filter = (path) -> {
+              if (path.toString().contains(".parquet")) {
+                String fileCommitTime = FSUtils.getCommitTime(path.getName());
+                return commit.equals(fileCommitTime);
+              } else if (path.toString().contains(".log")) {
+                // Since the baseCommitTime is the only commit for new log files, it's okay here
+                String fileCommitTime = FSUtils.getBaseCommitTimeFromLogPath(path);
+                return commit.equals(fileCommitTime);
               }
-            case HoodieTimeline.COMPACTION_ACTION:
-              try {
-                // If there is no delta commit present after the current commit (if compaction), no action, else we
-                // need to make sure that a compaction commit rollback also deletes any log files written as part of the
-                // succeeding deltacommit.
-                boolean higherDeltaCommits = !activeTimeline.getDeltaCommitTimeline()
-                    .filterCompletedInstants().findInstantsAfter(commit, 1).empty();
-                if (higherDeltaCommits) {
-                  // Rollback of a compaction action with no higher deltacommit means that the compaction is scheduled
-                  // and has not yet finished. In this scenario we should delete only the newly created parquet files
-                  // and not corresponding base commit log files created with this as baseCommit since updates would
-                  // have been written to the log files.
-                  super.deleteCleanedFiles(filesToDeletedStatus, commit, partitionPath);
-                  hoodieRollbackStats = HoodieRollbackStat.newBuilder()
-                      .withPartitionPath(partitionPath).withDeletedFileResults(filesToDeletedStatus).build();
-                } else {
-                  // No deltacommits present after this compaction commit (inflight or requested). In this case, we
-                  // can also delete any log files that were created with this compaction commit as base
-                  // commit.
+              return false;
+            };
+
+            final Map<FileStatus, Boolean> filesToDeletedStatus = new HashMap<>();
+
+            switch (instantToRollback.getAction()) {
+              case HoodieTimeline.COMMIT_ACTION:
+                try {
+                  // Rollback of a commit should delete the newly created parquet files along with any log
+                  // files created with this as baseCommit. This is required to support multi-rollbacks in a MOR table.
                   super.deleteCleanedFiles(filesToDeletedStatus, partitionPath, filter);
                   hoodieRollbackStats = HoodieRollbackStat.newBuilder()
                       .withPartitionPath(partitionPath).withDeletedFileResults(filesToDeletedStatus).build();
+                  break;
+                } catch (IOException io) {
+                  throw new UncheckedIOException("Failed to rollback for commit " + commit, io);
                 }
-                break;
-              } catch (IOException io) {
-                throw new UncheckedIOException("Failed to rollback for commit " + commit, io);
-              }
-            case HoodieTimeline.DELTA_COMMIT_ACTION:
-              // --------------------------------------------------------------------------------------------------
-              // (A) The following cases are possible if index.canIndexLogFiles and/or index.isGlobal
-              // --------------------------------------------------------------------------------------------------
-              // (A.1) Failed first commit - Inserts were written to log files and HoodieWriteStat has no entries. In
-              // this scenario we would want to delete these log files.
-              // (A.2) Failed recurring commit - Inserts/Updates written to log files. In this scenario,
-              // HoodieWriteStat will have the baseCommitTime for the first log file written, add rollback blocks.
-              // (A.3) Rollback triggered for first commit - Inserts were written to the log files but the commit is
-              // being reverted. In this scenario, HoodieWriteStat will be `null` for the attribute prevCommitTime and
-              // and hence will end up deleting these log files. This is done so there are no orphan log files
-              // lying around.
-              // (A.4) Rollback triggered for recurring commits - Inserts/Updates are being rolled back, the actions
-              // taken in this scenario is a combination of (A.2) and (A.3)
-              // ---------------------------------------------------------------------------------------------------
-              // (B) The following cases are possible if !index.canIndexLogFiles and/or !index.isGlobal
-              // ---------------------------------------------------------------------------------------------------
-              // (B.1) Failed first commit - Inserts were written to parquet files and HoodieWriteStat has no entries.
-              // In this scenario, we delete all the parquet files written for the failed commit.
-              // (B.2) Failed recurring commits - Inserts were written to parquet files and updates to log files. In
-              // this scenario, perform (A.1) and for updates written to log files, write rollback blocks.
-              // (B.3) Rollback triggered for first commit - Same as (B.1)
-              // (B.4) Rollback triggered for recurring commits - Same as (B.2) plus we need to delete the log files
-              // as well if the base parquet file gets deleted.
-              try {
-                HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
-                    metaClient.getCommitTimeline().getInstantDetails(
-                        new HoodieInstant(true, instantToRollback.getAction(), instantToRollback.getTimestamp()))
-                        .get(), HoodieCommitMetadata.class);
-
-                // read commit file and (either append delete blocks or delete file)
-                Map<FileStatus, Long> filesToNumBlocksRollback = new HashMap<>();
-
-                // In case all data was inserts and the commit failed, delete the file belonging to that commit
-                // We do not know fileIds for inserts (first inserts are either log files or parquet files),
-                // delete all files for the corresponding failed commit, if present (same as COW)
-                super.deleteCleanedFiles(filesToDeletedStatus, partitionPath, filter);
-                final Set<String> deletedFiles = filesToDeletedStatus.entrySet().stream()
-                    .map(entry -> {
-                      Path filePath = entry.getKey().getPath();
-                      return FSUtils.getFileIdFromFilePath(filePath);
-                    }).collect(Collectors.toSet());
-
-                // append rollback blocks for updates
-                if (commitMetadata.getPartitionToWriteStats().containsKey(partitionPath)) {
-                  hoodieRollbackStats = rollback(index, partitionPath, commit, commitMetadata, filesToDeletedStatus,
-                      filesToNumBlocksRollback, deletedFiles);
+              case HoodieTimeline.COMPACTION_ACTION:
+                try {
+                  // If there is no delta commit present after the current commit (if compaction), no action, else we
+                  // need to make sure that a compaction commit rollback also deletes any log files written as part of
+                  // the succeeding deltacommit.
+                  boolean higherDeltaCommits = !activeTimeline.getDeltaCommitTimeline()
+                      .filterCompletedInstants().findInstantsAfter(commit, 1).empty();
+                  if (higherDeltaCommits) {
+                    // Rollback of a compaction action with no higher deltacommit means that the compaction is scheduled
+                    // and has not yet finished. In this scenario we should delete only the newly created parquet files
+                    // and not corresponding base commit log files created with this as baseCommit since updates would
+                    // have been written to the log files.
+                    super.deleteCleanedFiles(filesToDeletedStatus, commit, partitionPath);
+                    hoodieRollbackStats = HoodieRollbackStat.newBuilder()
+                        .withPartitionPath(partitionPath).withDeletedFileResults(filesToDeletedStatus).build();
+                  } else {
+                    // No deltacommits present after this compaction commit (inflight or requested). In this case, we
+                    // can also delete any log files that were created with this compaction commit as base
+                    // commit.
+                    super.deleteCleanedFiles(filesToDeletedStatus, partitionPath, filter);
+                    hoodieRollbackStats = HoodieRollbackStat.newBuilder()
+                        .withPartitionPath(partitionPath).withDeletedFileResults(filesToDeletedStatus).build();
+                  }
+                  break;
+                } catch (IOException io) {
+                  throw new UncheckedIOException("Failed to rollback for commit " + commit, io);
                 }
+              case HoodieTimeline.DELTA_COMMIT_ACTION:
+                // --------------------------------------------------------------------------------------------------
+                // (A) The following cases are possible if index.canIndexLogFiles and/or index.isGlobal
+                // --------------------------------------------------------------------------------------------------
+                // (A.1) Failed first commit - Inserts were written to log files and HoodieWriteStat has no entries. In
+                // this scenario we would want to delete these log files.
+                // (A.2) Failed recurring commit - Inserts/Updates written to log files. In this scenario,
+                // HoodieWriteStat will have the baseCommitTime for the first log file written, add rollback blocks.
+                // (A.3) Rollback triggered for first commit - Inserts were written to the log files but the commit is
+                // being reverted. In this scenario, HoodieWriteStat will be `null` for the attribute prevCommitTime and
+                // and hence will end up deleting these log files. This is done so there are no orphan log files
+                // lying around.
+                // (A.4) Rollback triggered for recurring commits - Inserts/Updates are being rolled back, the actions
+                // taken in this scenario is a combination of (A.2) and (A.3)
+                // ---------------------------------------------------------------------------------------------------
+                // (B) The following cases are possible if !index.canIndexLogFiles and/or !index.isGlobal
+                // ---------------------------------------------------------------------------------------------------
+                // (B.1) Failed first commit - Inserts were written to parquet files and HoodieWriteStat has no entries.
+                // In this scenario, we delete all the parquet files written for the failed commit.
+                // (B.2) Failed recurring commits - Inserts were written to parquet files and updates to log files. In
+                // this scenario, perform (A.1) and for updates written to log files, write rollback blocks.
+                // (B.3) Rollback triggered for first commit - Same as (B.1)
+                // (B.4) Rollback triggered for recurring commits - Same as (B.2) plus we need to delete the log files
+                // as well if the base parquet file gets deleted.
+                try {
+                  HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
+                      metaClient.getCommitTimeline().getInstantDetails(
+                          new HoodieInstant(true, instantToRollback.getAction(), instantToRollback.getTimestamp()))
+                          .get(), HoodieCommitMetadata.class);
+
+                  // read commit file and (either append delete blocks or delete file)
+                  Map<FileStatus, Long> filesToNumBlocksRollback = new HashMap<>();
+
+                  // In case all data was inserts and the commit failed, delete the file belonging to that commit
+                  // We do not know fileIds for inserts (first inserts are either log files or parquet files),
+                  // delete all files for the corresponding failed commit, if present (same as COW)
+                  super.deleteCleanedFiles(filesToDeletedStatus, partitionPath, filter);
+                  final Set<String> deletedFiles = filesToDeletedStatus.entrySet().stream()
+                      .map(entry -> {
+                        Path filePath = entry.getKey().getPath();
+                        return FSUtils.getFileIdFromFilePath(filePath);
+                      }).collect(Collectors.toSet());
+
+                  // append rollback blocks for updates
+                  if (commitMetadata.getPartitionToWriteStats().containsKey(partitionPath)) {
+                    hoodieRollbackStats = rollback(index, partitionPath, commit, commitMetadata, filesToDeletedStatus,
+                        filesToNumBlocksRollback, deletedFiles);
+                  }
+                  break;
+                } catch (IOException io) {
+                  throw new UncheckedIOException("Failed to rollback for commit " + commit, io);
+                }
+              default:
                 break;
-              } catch (IOException io) {
-                throw new UncheckedIOException("Failed to rollback for commit " + commit, io);
-              }
-            default:
-              break;
-          }
-          return hoodieRollbackStats;
-        }).filter(Objects::nonNull).collect();
+            }
+            return hoodieRollbackStats;
+          }).filter(Objects::nonNull).collect();
+    }
 
     // Delete Inflight instants if enabled
-    deleteInflightInstant(deleteInstants, this.getActiveTimeline(), new HoodieInstant(true, instantToRollback
-        .getAction(), instantToRollback.getTimestamp()));
+    deleteInflightAndRequestedInstant(deleteInstants, this.getActiveTimeline(), instantToRollback);
 
     logger.debug("Time(in ms) taken to finish rollback " + (System.currentTimeMillis() - startTime));
 

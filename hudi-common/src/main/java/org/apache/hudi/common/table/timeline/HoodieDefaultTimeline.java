@@ -69,7 +69,6 @@ public class HoodieDefaultTimeline implements HoodieTimeline {
     } catch (NoSuchAlgorithmException nse) {
       throw new HoodieException(nse);
     }
-
     this.timelineHash = StringUtils.toHexString(md.digest());
   }
 
@@ -88,15 +87,15 @@ public class HoodieDefaultTimeline implements HoodieTimeline {
   }
 
   @Override
-  public HoodieTimeline filterInflightsExcludingCompaction() {
+  public HoodieTimeline filterPendingExcludingCompaction() {
     return new HoodieDefaultTimeline(instants.stream().filter(instant -> {
-      return instant.isInflight() && (!instant.getAction().equals(HoodieTimeline.COMPACTION_ACTION));
+      return (!instant.isCompleted()) && (!instant.getAction().equals(HoodieTimeline.COMPACTION_ACTION));
     }), details);
   }
 
   @Override
   public HoodieTimeline filterCompletedInstants() {
-    return new HoodieDefaultTimeline(instants.stream().filter(s -> !s.isInflight()), details);
+    return new HoodieDefaultTimeline(instants.stream().filter(HoodieInstant::isCompleted), details);
   }
 
   @Override
@@ -221,5 +220,4 @@ public class HoodieDefaultTimeline implements HoodieTimeline {
     return this.getClass().getName() + ": " + instants.stream().map(Object::toString)
         .collect(Collectors.joining(","));
   }
-
 }

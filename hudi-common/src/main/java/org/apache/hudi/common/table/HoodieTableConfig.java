@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.common.model.HoodieAvroPayload;
 import org.apache.hudi.common.model.HoodieFileFormat;
+import org.apache.hudi.common.model.HoodieMetadataVersion;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.log4j.LogManager;
@@ -51,6 +52,7 @@ public class HoodieTableConfig implements Serializable {
   public static final String HOODIE_PROPERTIES_FILE = "hoodie.properties";
   public static final String HOODIE_TABLE_NAME_PROP_NAME = "hoodie.table.name";
   public static final String HOODIE_TABLE_TYPE_PROP_NAME = "hoodie.table.type";
+  public static final String HOODIE_TABLE_VERSION_PROP_NAME = "hoodie.table.version";
   public static final String HOODIE_RO_FILE_FORMAT_PROP_NAME =
       "hoodie.table.ro.file.format";
   public static final String HOODIE_RT_FILE_FORMAT_PROP_NAME =
@@ -61,6 +63,8 @@ public class HoodieTableConfig implements Serializable {
   public static final HoodieTableType DEFAULT_TABLE_TYPE = HoodieTableType.COPY_ON_WRITE;
   public static final HoodieFileFormat DEFAULT_RO_FILE_FORMAT = HoodieFileFormat.PARQUET;
   public static final HoodieFileFormat DEFAULT_RT_FILE_FORMAT = HoodieFileFormat.HOODIE_LOG;
+  public static final Integer DEFAULT_TABLE_VERSION = HoodieMetadataVersion.VERSION_0;
+
   public static final String DEFAULT_PAYLOAD_CLASS = HoodieAvroPayload.class.getName();
   public static final String DEFAULT_ARCHIVELOG_FOLDER = "";
   private Properties props;
@@ -117,6 +121,10 @@ public class HoodieTableConfig implements Serializable {
       if (!properties.containsKey(HOODIE_ARCHIVELOG_FOLDER_PROP_NAME)) {
         properties.setProperty(HOODIE_ARCHIVELOG_FOLDER_PROP_NAME, DEFAULT_ARCHIVELOG_FOLDER);
       }
+      if (!properties.containsKey(HOODIE_TABLE_VERSION_PROP_NAME)) {
+        // Use latest Version as default unless forced by client
+        properties.setProperty(HOODIE_TABLE_VERSION_PROP_NAME, HoodieMetadataVersion.CURR_VERSION.toString());
+      }
       properties
               .store(outputStream, "Properties saved on " + new Date(System.currentTimeMillis()));
     }
@@ -131,6 +139,13 @@ public class HoodieTableConfig implements Serializable {
       return HoodieTableType.valueOf(props.getProperty(HOODIE_TABLE_TYPE_PROP_NAME));
     }
     return DEFAULT_TABLE_TYPE;
+  }
+
+  public HoodieMetadataVersion getTableVersion() {
+    if (props.containsKey(HOODIE_TABLE_VERSION_PROP_NAME)) {
+      return new HoodieMetadataVersion(Integer.valueOf(props.getProperty(HOODIE_TABLE_VERSION_PROP_NAME)));
+    }
+    return new HoodieMetadataVersion(DEFAULT_TABLE_VERSION);
   }
 
   /**

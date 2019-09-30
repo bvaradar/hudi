@@ -60,6 +60,8 @@ public interface HoodieTimeline extends Serializable {
   String SAVEPOINT_EXTENSION = "." + SAVEPOINT_ACTION;
   //this is to preserve backwards compatibility on commit in-flight filenames
   String INFLIGHT_COMMIT_EXTENSION = INFLIGHT_EXTENSION;
+  String REQUESTED_COMMIT_EXTENTSION = "." + COMMIT_ACTION + REQUESTED_EXTENSION;
+  String REQUESTED_DELTA_COMMIT_EXTENTSION = "." + DELTA_COMMIT_ACTION + REQUESTED_EXTENSION;
   String INFLIGHT_DELTA_COMMIT_EXTENSION = "." + DELTA_COMMIT_ACTION + INFLIGHT_EXTENSION;
   String INFLIGHT_CLEAN_EXTENSION = "." + CLEAN_ACTION + INFLIGHT_EXTENSION;
   String INFLIGHT_ROLLBACK_EXTENSION = "." + ROLLBACK_ACTION + INFLIGHT_EXTENSION;
@@ -87,7 +89,7 @@ public interface HoodieTimeline extends Serializable {
    *
    * @return New instance of HoodieTimeline with just in-flights excluding compaction inflights
    */
-  HoodieTimeline filterInflightsExcludingCompaction();
+  HoodieTimeline filterPendingExcludingCompaction();
 
   /**
    * Filter this timeline to just include the completed instants
@@ -244,6 +246,10 @@ public interface HoodieTimeline extends Serializable {
     return StringUtils.join(commitTime, HoodieTimeline.INFLIGHT_COMMIT_EXTENSION);
   }
 
+  static String makeRequestedCommitFileName(String commitTime) {
+    return StringUtils.join(commitTime, HoodieTimeline.REQUESTED_COMMIT_EXTENTSION);
+  }
+
   static String makeCleanerFileName(String instant) {
     return StringUtils.join(instant, HoodieTimeline.CLEAN_EXTENSION);
   }
@@ -270,6 +276,10 @@ public interface HoodieTimeline extends Serializable {
 
   static String makeInflightDeltaFileName(String commitTime) {
     return StringUtils.join(commitTime, HoodieTimeline.INFLIGHT_DELTA_COMMIT_EXTENSION);
+  }
+
+  static String makeRequestedDeltaFileName(String commitTime) {
+    return StringUtils.join(commitTime, HoodieTimeline.REQUESTED_DELTA_COMMIT_EXTENTSION);
   }
 
   static String makeInflightCompactionFileName(String commitTime) {

@@ -152,6 +152,7 @@ public class HoodieTestUtils {
               commitTime)));
       FileSystem fs = FSUtils.getFs(basePath, configuration);
       FSDataOutputStream os = fs.create(commitFile, true);
+      os.close();
     }
   }
 

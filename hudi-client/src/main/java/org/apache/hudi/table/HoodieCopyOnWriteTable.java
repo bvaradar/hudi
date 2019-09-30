@@ -50,6 +50,7 @@ import org.apache.hudi.common.model.HoodieRollingStatMetadata;
 import org.apache.hudi.common.table.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
+import org.apache.hudi.common.table.timeline.HoodieInstant.State;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
@@ -350,34 +351,38 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
   }
 
   @Override
-  public List<HoodieRollbackStat> rollback(JavaSparkContext jsc, String commit, boolean deleteInstants)
+  public List<HoodieRollbackStat> rollback(JavaSparkContext jsc, HoodieInstant instant, boolean deleteInstants)
       throws IOException {
-    String actionType = metaClient.getCommitActionType();
+    List<HoodieRollbackStat> stats = new ArrayList<>();
     HoodieActiveTimeline activeTimeline = this.getActiveTimeline();
-    List<String> inflights = this.getInflightCommitTimeline().getInstants()
-        .map(HoodieInstant::getTimestamp).collect(Collectors.toList());
-    // Atomically unpublish the commits
-    if (!inflights.contains(commit)) {
-      activeTimeline.revertToInflight(new HoodieInstant(false, actionType, commit));
+
+    if (instant.isCompleted()) {
+      logger.info("Unpublishing instant " + instant);
+      activeTimeline.revertToInflight(instant);
+      // Mark as inflight
+      instant = new HoodieInstant(State.INFLIGHT, instant.getAction(), instant.getTimestamp());
     }
-    logger.info("Unpublished " + commit);
 
-    // delete all the data files for this commit
-    logger.info("Clean out all parquet files generated for commit: " + commit);
-    List<HoodieRollbackStat> stats = jsc.parallelize(FSUtils
-        .getAllPartitionPaths(metaClient.getFs(), getMetaClient().getBasePath(),
-            config.shouldAssumeDatePartitioning()))
-        .map((Function<String, HoodieRollbackStat>) partitionPath -> {
-          // Scan all partitions files with this commit time
-          final Map<FileStatus, Boolean> filesToDeletedStatus = new HashMap<>();
-          deleteCleanedFiles(filesToDeletedStatus, commit, partitionPath);
-          return HoodieRollbackStat.newBuilder().withPartitionPath(partitionPath)
-              .withDeletedFileResults(filesToDeletedStatus).build();
-        }).collect();
+    // For Requested State (like failure during index lookup), there is nothing to do rollback other than
+    // deleting the timeline file
+    if (!instant.isRequested()) {
+      String commit = instant.getTimestamp();
 
-    // Delete Inflight instant if enabled
-    deleteInflightInstant(deleteInstants, activeTimeline,
-        new HoodieInstant(true, actionType, commit));
+      // delete all the data files for this commit
+      logger.info("Clean out all parquet files generated for commit: " + commit);
+      stats = jsc.parallelize(FSUtils
+          .getAllPartitionPaths(metaClient.getFs(), getMetaClient().getBasePath(),
+              config.shouldAssumeDatePartitioning()))
+          .map((Function<String, HoodieRollbackStat>) partitionPath -> {
+            // Scan all partitions files with this commit time
+            final Map<FileStatus, Boolean> filesToDeletedStatus = new HashMap<>();
+            deleteCleanedFiles(filesToDeletedStatus, commit, partitionPath);
+            return HoodieRollbackStat.newBuilder().withPartitionPath(partitionPath)
+                .withDeletedFileResults(filesToDeletedStatus).build();
+          }).collect();
+    }
+    // Delete Pending instant if enabled
+    deleteInflightAndRequestedInstant(deleteInstants, activeTimeline, instant);
     return stats;
   }
 
@@ -387,15 +392,21 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
    * @param activeTimeline  Hoodie active timeline
    * @param instantToBeDeleted Instant to be deleted
    */
-  protected void deleteInflightInstant(boolean deleteInstant, HoodieActiveTimeline activeTimeline,
+  protected void deleteInflightAndRequestedInstant(boolean deleteInstant, HoodieActiveTimeline activeTimeline,
       HoodieInstant instantToBeDeleted) {
     // Remove marker files always on rollback
     deleteMarkerDir(instantToBeDeleted.getTimestamp());
 
     // Remove the rolled back inflight commits
     if (deleteInstant) {
-      activeTimeline.deleteInflight(instantToBeDeleted);
-      logger.info("Deleted inflight commit " + instantToBeDeleted);
+      activeTimeline.deletePending(instantToBeDeleted);
+      if (instantToBeDeleted.isInflight()) {
+        // Delete corresponding requested instant
+        instantToBeDeleted = new HoodieInstant(State.REQUESTED, instantToBeDeleted.getAction(),
+            instantToBeDeleted.getTimestamp());
+        activeTimeline.deletePending(instantToBeDeleted);
+      }
+      logger.info("Deleted pending commit " + instantToBeDeleted);
     } else {
       logger.warn("Rollback finished without deleting inflight instant file. Instant=" + instantToBeDeleted);
     }

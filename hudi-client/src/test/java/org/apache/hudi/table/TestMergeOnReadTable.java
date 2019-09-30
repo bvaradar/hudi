@@ -1038,8 +1038,10 @@ public class TestMergeOnReadTable extends HoodieClientTestHarness {
       // Create a commit without rolling stats in metadata to test backwards compatibility
       HoodieActiveTimeline activeTimeline = table.getActiveTimeline();
       String commitActionType = table.getMetaClient().getCommitActionType();
-      HoodieInstant instant = new HoodieInstant(true, commitActionType, "000");
-      activeTimeline.createInflight(instant);
+      HoodieInstant instant = new HoodieInstant(State.REQUESTED, commitActionType, "000");
+      activeTimeline.createNewInstant(instant);
+      activeTimeline.transitionRequestedToInflight(instant, Option.empty());
+      instant = new HoodieInstant(State.INFLIGHT, commitActionType, "000");
       activeTimeline.saveAsComplete(instant, Option.empty());
 
       String commitTime = "001";

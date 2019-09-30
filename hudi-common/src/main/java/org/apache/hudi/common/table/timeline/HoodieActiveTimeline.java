@@ -29,6 +29,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -55,10 +56,10 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
   public static final SimpleDateFormat COMMIT_FORMATTER = new SimpleDateFormat("yyyyMMddHHmmss");
 
   public static final Set<String> VALID_EXTENSIONS_IN_ACTIVE_TIMELINE = new HashSet<>(Arrays.asList(
-      new String[]{COMMIT_EXTENSION, INFLIGHT_COMMIT_EXTENSION, DELTA_COMMIT_EXTENSION,
-          INFLIGHT_DELTA_COMMIT_EXTENSION, SAVEPOINT_EXTENSION, INFLIGHT_SAVEPOINT_EXTENSION,
-          CLEAN_EXTENSION, INFLIGHT_CLEAN_EXTENSION, INFLIGHT_COMPACTION_EXTENSION, REQUESTED_COMPACTION_EXTENSION,
-          INFLIGHT_RESTORE_EXTENSION, RESTORE_EXTENSION}));
+      new String[]{COMMIT_EXTENSION, INFLIGHT_COMMIT_EXTENSION, REQUESTED_COMMIT_EXTENTSION, DELTA_COMMIT_EXTENSION,
+          INFLIGHT_DELTA_COMMIT_EXTENSION, REQUESTED_DELTA_COMMIT_EXTENTSION, SAVEPOINT_EXTENSION,
+          INFLIGHT_SAVEPOINT_EXTENSION, CLEAN_EXTENSION, INFLIGHT_CLEAN_EXTENSION, INFLIGHT_COMPACTION_EXTENSION,
+          REQUESTED_COMPACTION_EXTENSION, INFLIGHT_RESTORE_EXTENSION, RESTORE_EXTENSION}));
 
   private static final transient Logger log = LogManager.getLogger(HoodieActiveTimeline.class);
   protected HoodieTableMetaClient metaClient;
@@ -71,12 +72,16 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
   }
 
   protected HoodieActiveTimeline(HoodieTableMetaClient metaClient, Set<String> includedExtensions) {
+    this(metaClient, includedExtensions, true);
+  }
+
+  protected HoodieActiveTimeline(HoodieTableMetaClient metaClient, Set<String> includedExtensions,
+      boolean excludeIntermediateStates) {
     // Filter all the filter in the metapath and include only the extensions passed and
     // convert them into HoodieInstant
     try {
       this.setInstants(HoodieTableMetaClient.scanHoodieInstantsFromFileSystem(metaClient.getFs(),
-          new Path(metaClient.getMetaPath()), includedExtensions));
-      log.info("Loaded instants " + getInstants());
+          new Path(metaClient.getMetaPath()), includedExtensions, excludeIntermediateStates));
     } catch (IOException e) {
       throw new HoodieIOException("Failed to scan metadata", e);
     }
@@ -85,12 +90,20 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     // http://docs.oracle.com/javase/specs/jls/se8/html/jls-15.html#jls-15.16
     this.details =
         (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails;
+    log.info("Loaded instants " + getInstants().collect(Collectors.toList()));
+
   }
 
   public HoodieActiveTimeline(HoodieTableMetaClient metaClient) {
     this(metaClient,
         new ImmutableSet.Builder<String>()
             .addAll(VALID_EXTENSIONS_IN_ACTIVE_TIMELINE).build());
+  }
+
+  public HoodieActiveTimeline(HoodieTableMetaClient metaClient, boolean excludeIntermediateStates) {
+    this(metaClient,
+        new ImmutableSet.Builder<String>()
+            .addAll(VALID_EXTENSIONS_IN_ACTIVE_TIMELINE).build(), excludeIntermediateStates);
   }
 
   /**
@@ -142,6 +155,17 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
   }
 
   /**
+   * Get a timeline of a specific set of actions. useful to create a merged timeline of multiple
+   * actions
+   *
+   * @param actions actions allowed in the timeline
+   */
+  public HoodieTimeline getTimelineOfActions(Set<String> actions) {
+    return new HoodieDefaultTimeline(getInstants().filter(s -> actions.contains(s.getAction())),
+        (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails);
+  }
+
+  /**
    * Get only pure commits (inflight and completed) in the active timeline
    */
   public HoodieTimeline getCommitTimeline() {
@@ -153,17 +177,6 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
    */
   public HoodieTimeline getDeltaCommitTimeline() {
     return new HoodieDefaultTimeline(filterInstantsByAction(DELTA_COMMIT_ACTION),
-        (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails);
-  }
-
-  /**
-   * Get a timeline of a specific set of actions. useful to create a merged timeline of multiple
-   * actions
-   *
-   * @param actions actions allowed in the timeline
-   */
-  public HoodieTimeline getTimelineOfActions(Set<String> actions) {
-    return new HoodieDefaultTimeline(getInstants().filter(s -> actions.contains(s.getAction())),
         (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails);
   }
 
@@ -204,8 +217,8 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     return getInstants().filter(s -> s.getAction().equals(action));
   }
 
-  public void createInflight(HoodieInstant instant) {
-    log.info("Creating a new in-flight instant " + instant);
+  public void createNewInstant(HoodieInstant instant) {
+    log.info("Creating a new instant " + instant);
     // Create the in-flight file
     createFileInMetaPath(instant.getFileName(), Option.empty());
   }
@@ -226,6 +239,11 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
 
   public void deleteInflight(HoodieInstant instant) {
     Preconditions.checkArgument(instant.isInflight());
+    deleteInstantFile(instant);
+  }
+
+  public void deletePending(HoodieInstant instant) {
+    Preconditions.checkArgument(!instant.isCompleted());
     deleteInstantFile(instant);
   }
 
@@ -259,8 +277,13 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
 
   /** BEGIN - COMPACTION RELATED META-DATA MANAGEMENT **/
 
-  public Option<byte[]> getInstantAuxiliaryDetails(HoodieInstant instant) {
-    Path detailPath = new Path(metaClient.getMetaAuxiliaryPath(), instant.getFileName());
+  public Option<byte[]> getCompactionPlanInBytes(HoodieInstant instant) {
+    Path detailPath = null;
+    if (metaClient.getMetadataVersion().isPre051Format()) {
+      detailPath = new Path(metaClient.getMetaAuxiliaryPath(), instant.getFileName());
+    } else {
+      detailPath = new Path(metaClient.getMetaPath(), instant.getFileName());
+    }
     return readDataFromPath(detailPath);
   }
 
@@ -311,8 +334,11 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
   }
 
   private void createFileInAuxiliaryFolder(HoodieInstant instant, Option<byte[]> data) {
-    Path fullPath = new Path(metaClient.getMetaAuxiliaryPath(), instant.getFileName());
-    createFileInPath(fullPath, data);
+    if (metaClient.getMetadataVersion().isPre051Format()) {
+      // No need for auxiliary folder for newer versions
+      Path fullPath = new Path(metaClient.getMetaAuxiliaryPath(), instant.getFileName());
+      createFileInPath(fullPath, data);
+    }
   }
 
   /**
@@ -322,15 +348,22 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
   private void transitionState(HoodieInstant fromInstant, HoodieInstant toInstant,
       Option<byte[]> data) {
     Preconditions.checkArgument(fromInstant.getTimestamp().equals(toInstant.getTimestamp()));
-    Path commitFilePath = new Path(metaClient.getMetaPath(), toInstant.getFileName());
     try {
-      // Re-create the .inflight file by opening a new file and write the commit metadata in
-      Path inflightCommitFile = new Path(metaClient.getMetaPath(), fromInstant.getFileName());
-      createFileInMetaPath(fromInstant.getFileName(), data);
-      boolean success = metaClient.getFs().rename(inflightCommitFile, commitFilePath);
-      if (!success) {
-        throw new HoodieIOException(
-            "Could not rename " + inflightCommitFile + " to " + commitFilePath);
+      if (metaClient.getMetadataVersion().isPre051Format()) {
+        // Re-create the .inflight file by opening a new file and write the commit metadata in
+        createFileInMetaPath(fromInstant.getFileName(), data);
+        Path fromInstantPath = new Path(metaClient.getMetaPath(), fromInstant.getFileName());
+        Path toInstantPath = new Path(metaClient.getMetaPath(), toInstant.getFileName());
+        boolean success = metaClient.getFs().rename(fromInstantPath, toInstantPath);
+        if (!success) {
+          throw new HoodieIOException("Could not rename " + fromInstantPath + " to " + toInstantPath);
+        }
+      } else {
+        // Ensures old state exists in timeline
+        Preconditions.checkArgument(metaClient.getFs().exists(new Path(metaClient.getMetaPath(),
+            fromInstant.getFileName())));
+        // Use Write Once to create Target File
+        writeFileOnceInPath(new Path(metaClient.getMetaPath(), toInstant.getFileName()), data);
       }
     } catch (IOException e) {
       throw new HoodieIOException("Could not complete " + fromInstant, e);
@@ -340,23 +373,30 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
   private void revertCompleteToInflight(HoodieInstant completed, HoodieInstant inflight) {
     Preconditions.checkArgument(completed.getTimestamp().equals(inflight.getTimestamp()));
     Path inFlightCommitFilePath = new Path(metaClient.getMetaPath(), inflight.getFileName());
+    Path commitFilePath = new Path(metaClient.getMetaPath(), completed.getFileName());
     try {
-      if (!metaClient.getFs().exists(inFlightCommitFilePath)) {
-        Path commitFilePath = new Path(metaClient.getMetaPath(), completed.getFileName());
-        boolean success = metaClient.getFs().rename(commitFilePath, inFlightCommitFilePath);
-        if (!success) {
-          throw new HoodieIOException(
-              "Could not rename " + commitFilePath + " to " + inFlightCommitFilePath);
+      if (metaClient.getMetadataVersion().isPre051Format()) {
+        if (!metaClient.getFs().exists(inFlightCommitFilePath)) {
+          boolean success = metaClient.getFs().rename(commitFilePath, inFlightCommitFilePath);
+          if (!success) {
+            throw new HoodieIOException(
+                "Could not rename " + commitFilePath + " to " + inFlightCommitFilePath);
+          }
         }
+      } else {
+        Preconditions.checkArgument(metaClient.getFs().exists(inFlightCommitFilePath));
+        boolean success = metaClient.getFs().delete(commitFilePath, false);
+        Preconditions.checkArgument(success, "State Reverting failed");
       }
     } catch (IOException e) {
       throw new HoodieIOException("Could not complete revert " + completed, e);
     }
   }
 
-  public void saveToInflight(HoodieInstant instant, Option<byte[]> content) {
-    Preconditions.checkArgument(instant.isInflight());
-    createFileInMetaPath(instant.getFileName(), content);
+  public void transitionRequestedToInflight(HoodieInstant requested, Option<byte[]> content) {
+    HoodieInstant inflight = new HoodieInstant(State.INFLIGHT, requested.getAction(), requested.getTimestamp());
+    Preconditions.checkArgument(requested.isRequested());
+    transitionState(requested, inflight, content);
   }
 
   public void saveToCompactionRequested(HoodieInstant instant, Option<byte[]> content) {
@@ -368,7 +408,11 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
 
   private void createFileInMetaPath(String filename, Option<byte[]> content) {
     Path fullPath = new Path(metaClient.getMetaPath(), filename);
-    createFileInPath(fullPath, content);
+    if (metaClient.getMetadataVersion().isPre051Format()) {
+      createFileInPath(fullPath, content);
+    } else {
+      writeFileOnceInPath(fullPath, content);
+    }
   }
 
   private void createFileInPath(Path fullPath, Option<byte[]> content) {
@@ -389,6 +433,32 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
       }
     } catch (IOException e) {
       throw new HoodieIOException("Failed to create file " + fullPath, e);
+    }
+  }
+
+  /**
+   * Creates a new file in timeline with overwrite set to false. This ensures
+   * files are created only once and never rewritten
+   * @param fullPath File Path
+   * @param content Content to be stored
+   */
+  private void writeFileOnceInPath(Path fullPath, Option<byte[]> content) {
+    FSDataOutputStream fsout = null;
+    try {
+      fsout = metaClient.getFs().create(fullPath, false);
+      if (content.isPresent()) {
+        fsout.write(content.get());
+      }
+    } catch (IOException e) {
+      throw new HoodieIOException("Failed to create file " + fullPath, e);
+    } finally {
+      try {
+        if (null != fsout) {
+          fsout.close();
+        }
+      } catch (IOException e) {
+        throw new HoodieIOException("Failed to close file " + fullPath, e);
+      }
     }
   }
 

@@ -23,12 +23,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -36,6 +36,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hudi.common.SerializableConfiguration;
 import org.apache.hudi.common.io.storage.HoodieWrapperFileSystem;
+import org.apache.hudi.common.model.HoodieMetadataVersion;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
@@ -44,6 +45,7 @@ import org.apache.hudi.common.util.ConsistencyGuardConfig;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.FailSafeConsistencyGuard;
 import org.apache.hudi.common.util.NoOpConsistencyGuard;
+import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.exception.DatasetNotFoundException;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.log4j.LogManager;
@@ -73,6 +75,7 @@ public class HoodieTableMetaClient implements Serializable {
   private String metaPath;
   private SerializableConfiguration hadoopConf;
   private HoodieTableType tableType;
+  private HoodieMetadataVersion tableMetadataVersion;
   private HoodieTableConfig tableConfig;
   private HoodieActiveTimeline activeTimeline;
   private HoodieArchivedTimeline archivedTimeline;
@@ -103,7 +106,8 @@ public class HoodieTableMetaClient implements Serializable {
     DatasetNotFoundException.checkValidDataset(fs, basePathDir, metaPathDir);
     this.tableConfig = new HoodieTableConfig(fs, metaPath);
     this.tableType = tableConfig.getTableType();
-    log.info("Finished Loading Table of type " + tableType + " from " + basePath);
+    this.tableMetadataVersion = tableConfig.getTableVersion();
+    log.info("Finished Loading Table of type " + tableType + "(version=" + tableMetadataVersion + ") from " + basePath);
     if (loadActiveTimelineOnLoad) {
       log.info("Loading Active commit timeline for " + basePath);
       getActiveTimeline();
@@ -195,6 +199,10 @@ public class HoodieTableMetaClient implements Serializable {
    */
   public HoodieTableConfig getTableConfig() {
     return tableConfig;
+  }
+
+  public HoodieMetadataVersion getMetadataVersion() {
+    return tableMetadataVersion;
   }
 
   /**
@@ -410,7 +418,6 @@ public class HoodieTableMetaClient implements Serializable {
     }
   }
 
-
   /**
    * Helper method to scan all hoodie-instant metafiles and construct HoodieInstant objects
    *
@@ -422,17 +429,48 @@ public class HoodieTableMetaClient implements Serializable {
    */
   public static List<HoodieInstant> scanHoodieInstantsFromFileSystem(
       FileSystem fs, Path metaPath, Set<String> includedExtensions) throws IOException {
-    return Arrays.stream(
+    return scanHoodieInstantsFromFileSystem(fs, metaPath, includedExtensions, true);
+  }
+
+  /**
+   * Helper method to scan all hoodie-instant metafiles and construct HoodieInstant objects
+   *
+   * @param fs                 FileSystem
+   * @param metaPath           Meta Path where hoodie instants are present
+   * @param includedExtensions Included hoodie extensions
+   * @param excludeIntermediateStates If there are multiple states for the same action instant,
+   *                                  only include the highest state
+   * @return List of Hoodie Instants generated
+   * @throws IOException in case of failure
+   */
+  public static List<HoodieInstant> scanHoodieInstantsFromFileSystem(
+      FileSystem fs, Path metaPath, Set<String> includedExtensions, boolean excludeIntermediateStates)
+      throws IOException {
+    Stream<HoodieInstant> instantStream = Arrays.stream(
         HoodieTableMetaClient
             .scanFiles(fs, metaPath, path -> {
               // Include only the meta files with extensions that needs to be included
               String extension = FSUtils.getFileExtension(path.getName());
               return includedExtensions.contains(extension);
-            })).sorted(Comparator.comparing(
-                // Sort the meta-data by the instant time (first part of the file name)
-                fileStatus -> FSUtils.getInstantTime(fileStatus.getPath().getName())))
-        // create HoodieInstantMarkers from FileStatus, which extracts properties
-        .map(HoodieInstant::new).collect(Collectors.toList());
+            })).map(HoodieInstant::new);
+
+    if (excludeIntermediateStates) {
+      // Remove intermediate states for each (ts,action) pair
+      instantStream = dedupeInstants(instantStream);
+    }
+    return instantStream.sorted().collect(Collectors.toList());
+  }
+
+  public static Stream<HoodieInstant> dedupeInstants(Stream<HoodieInstant> instantStream) {
+    return instantStream.collect(Collectors.groupingBy(x -> Pair.of(x.getTimestamp(),
+        x.getAction().equals(HoodieTimeline.COMPACTION_ACTION) ? HoodieTimeline.COMMIT_ACTION : x.getAction())))
+        .entrySet().stream().map(e -> e.getValue().stream().reduce((x, y) -> {
+          // Pick the one with the highest state
+          if (x.getState().compareTo(y.getState()) >= 0) {
+            return x;
+          }
+          return y;
+        }).get()).sorted();
   }
 
   @Override

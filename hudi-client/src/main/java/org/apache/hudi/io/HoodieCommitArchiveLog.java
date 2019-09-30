@@ -20,6 +20,7 @@ package org.apache.hudi.io;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import java.io.IOException;
@@ -52,6 +53,7 @@ import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.util.AvroUtils;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieCommitException;
 import org.apache.hudi.exception.HoodieException;
@@ -109,15 +111,26 @@ public class HoodieCommitArchiveLog {
    */
   public boolean archiveIfRequired(final JavaSparkContext jsc) throws IOException {
     try {
-      List<HoodieInstant> instantsToArchive = getInstantsToArchive(jsc).collect(Collectors.toList());
-      boolean success = true;
-      if (instantsToArchive.iterator().hasNext()) {
+      List<HoodieInstant> instantsToDelete = getInstantsToArchive(jsc).collect(Collectors.toList());
+      List<HoodieInstant> instantsToArchive = instantsToDelete.stream()
+          .filter(HoodieInstant::isCompleted).collect(Collectors.toList());
+
+      Preconditions.checkArgument(instantsToArchive.isEmpty() == instantsToDelete.isEmpty(),
+          "Unexpected archiving state. instantsToArchive=" + instantsToArchive
+              + ", instantsToDelete=" + instantsToDelete);
+
+      if (!instantsToArchive.isEmpty()) {
         this.writer = openWriter();
         log.info("Archiving instants " + instantsToArchive);
         archive(instantsToArchive);
-        success = deleteArchivedInstants(instantsToArchive);
       } else {
         log.info("No Instants to archive");
+      }
+
+      boolean success = true;
+      if (!instantsToDelete.isEmpty()) {
+        log.info("Deleting archived instants " + instantsToArchive);
+        success = deleteArchivedInstants(instantsToArchive);
       }
       return success;
     } finally {
@@ -175,7 +188,18 @@ public class HoodieCommitArchiveLog {
           .limit(commitTimeline.countInstants() - minCommitsToKeep));
     }
 
-    return instants;
+    /**
+     * TODO: varadarb
+     * This is a temporary arrangement involving extra list-status call. We will rewrite this whole
+     * function as part of redesigning metadata store
+     */
+    HoodieActiveTimeline rawActiveTimeline = new HoodieActiveTimeline(metaClient, false);
+    Map<Pair<String, String>, List<HoodieInstant>> groupByTsAction = rawActiveTimeline.getInstants()
+        .collect(Collectors.groupingBy(x -> Pair.of(x.getTimestamp(),
+            x.getAction().equals(HoodieTimeline.COMPACTION_ACTION) ? HoodieTimeline.COMMIT_ACTION : x.getAction())));
+
+    return instants.flatMap(hoodieInstant ->
+        groupByTsAction.get(Pair.of(hoodieInstant.getTimestamp(), hoodieInstant.getAction())).stream());
   }
 
   private boolean deleteArchivedInstants(List<HoodieInstant> archivedInstants) throws IOException {

@@ -78,6 +78,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestMergeOnReadTable extends HoodieClientTestHarness {
 
+
   @Before
   public void init() throws IOException {
     initDFS();
@@ -825,6 +826,8 @@ public class TestMergeOnReadTable extends HoodieClientTestHarness {
         }
 
         // Mark 2nd delta-instant as completed
+        metaClient.getActiveTimeline().createNewInstant(new HoodieInstant(State.INFLIGHT,
+            HoodieTimeline.DELTA_COMMIT_ACTION, newCommitTime));
         metaClient.getActiveTimeline().saveAsComplete(
             new HoodieInstant(State.INFLIGHT, HoodieTimeline.DELTA_COMMIT_ACTION, newCommitTime), Option.empty());
 

@@ -53,7 +53,7 @@ import org.junit.Test;
 public class TestHoodieCommitArchiveLog extends HoodieClientTestHarness {
 
   private Configuration hadoopConf;
-/
+
   @Before
   public void init() throws Exception {
     initDFS();

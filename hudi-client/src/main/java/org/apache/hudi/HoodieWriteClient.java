@@ -668,6 +668,8 @@ public class HoodieWriteClient<T extends HoodieRecordPayload> extends AbstractHo
       HoodieSavepointMetadata metadata = AvroUtils
           .convertSavepointMetadata(user, comment, latestFilesMap);
       // Nothing to save in the savepoint
+      table.getActiveTimeline().createNewInstant(
+          new HoodieInstant(true, HoodieTimeline.SAVEPOINT_ACTION, commitTime));
       table.getActiveTimeline()
           .saveAsComplete(new HoodieInstant(true, HoodieTimeline.SAVEPOINT_ACTION, commitTime),
               AvroUtils.serializeSavepointMetadata(metadata));
@@ -814,6 +816,8 @@ public class HoodieWriteClient<T extends HoodieRecordPayload> extends AbstractHo
     final Timer.Context context = startContext();
     ImmutableMap.Builder<String, List<HoodieRollbackStat>> instantsToStats =
         ImmutableMap.builder();
+    table.getActiveTimeline().createNewInstant(
+        new HoodieInstant(true, HoodieTimeline.RESTORE_ACTION, startRollbackInstant));
     instantsToRollback.stream().forEach(instant -> {
       try {
         switch (instant.getAction()) {

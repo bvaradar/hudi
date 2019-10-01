@@ -120,6 +120,12 @@ public class HoodieTestUtils {
   public static final void createCommitFiles(String basePath, String... commitTimes) throws IOException {
     for (String commitTime : commitTimes) {
       new File(
+          basePath + "/" + HoodieTableMetaClient.METAFOLDER_NAME + "/"
+              + HoodieTimeline.makeRequestedCommitFileName(commitTime)).createNewFile();
+      new File(
+          basePath + "/" + HoodieTableMetaClient.METAFOLDER_NAME + "/"
+              + HoodieTimeline.makeInflightCommitFileName(commitTime)).createNewFile();
+      new File(
           basePath + "/" + HoodieTableMetaClient.METAFOLDER_NAME + "/" + HoodieTimeline.makeCommitFileName(commitTime))
           .createNewFile();
     }
@@ -139,6 +145,8 @@ public class HoodieTestUtils {
 
   public static final void createInflightCommitFiles(String basePath, String... commitTimes) throws IOException {
     for (String commitTime : commitTimes) {
+      new File(basePath + "/" + HoodieTableMetaClient.METAFOLDER_NAME + "/"
+          + HoodieTimeline.makeRequestedCommitFileName(commitTime)).createNewFile();
       new File(basePath + "/" + HoodieTableMetaClient.METAFOLDER_NAME + "/" + HoodieTimeline.makeInflightCommitFileName(
           commitTime)).createNewFile();
     }

@@ -259,13 +259,13 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     try {
       boolean result = metaClient.getFs().delete(inFlightCommitFilePath, false);
       if (result) {
-        log.info("Removed in-flight " + instant);
+        log.info("Removed instant " + instant);
       } else {
-        throw new HoodieIOException("Could not delete in-flight instant " + instant);
+        throw new HoodieIOException("Could not delete instant " + instant);
       }
     } catch (IOException e) {
       throw new HoodieIOException(
-          "Could not remove inflight commit " + inFlightCommitFilePath, e);
+          "Could not remove instant " + inFlightCommitFilePath, e);
     }
   }
 
@@ -298,8 +298,12 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     Preconditions.checkArgument(inflightInstant.isInflight());
     HoodieInstant requestedInstant =
         new HoodieInstant(State.REQUESTED, COMPACTION_ACTION, inflightInstant.getTimestamp());
-    // Pass empty data since it is read from the corresponding .aux/.compaction instant file
-    transitionState(inflightInstant, requestedInstant, Option.empty());
+    if (metaClient.getMetadataVersion().isPre051Format()) {
+      // Pass empty data since it is read from the corresponding .aux/.compaction instant file
+      transitionState(inflightInstant, requestedInstant, Option.empty());
+    } else {
+      deleteInflight(inflightInstant);
+    }
     return requestedInstant;
   }
 
@@ -384,7 +388,10 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
           }
         }
       } else {
-        Preconditions.checkArgument(metaClient.getFs().exists(inFlightCommitFilePath));
+        // If inflight file does not exist, create one
+        if (!metaClient.getFs().exists(inFlightCommitFilePath)) {
+          metaClient.getFs().create(inFlightCommitFilePath, false).close();
+        }
         boolean success = metaClient.getFs().delete(commitFilePath, false);
         Preconditions.checkArgument(success, "State Reverting failed");
       }

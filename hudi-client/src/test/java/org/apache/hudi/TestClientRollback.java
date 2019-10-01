@@ -218,10 +218,12 @@ public class TestClientRollback extends TestHoodieClientBase {
 
       // simulate partial failure, where .inflight was not deleted, but data files were.
       HoodieTestUtils.createInflightCommitFiles(basePath, commitTime3);
+      Thread.sleep(1000);
       client.rollback(commitTime3);
       assertFalse(HoodieTestUtils.doesInflightExist(basePath, commitTime3));
 
       // Rollback commit2
+      Thread.sleep(1000);
       client.rollback(commitTime2);
       assertFalse(HoodieTestUtils.doesCommitExist(basePath, commitTime2));
       assertFalse(HoodieTestUtils.doesInflightExist(basePath, commitTime2));
@@ -236,6 +238,7 @@ public class TestClientRollback extends TestHoodieClientBase {
       file22 = HoodieTestUtils.createDataFile(basePath, "2016/05/02", commitTime2, "id22");
       file23 = HoodieTestUtils.createDataFile(basePath, "2016/05/06", commitTime2, "id23");
 
+      Thread.sleep(1000);
       client.rollback(commitTime2);
       assertFalse(HoodieTestUtils.doesCommitExist(basePath, commitTime2));
       assertFalse(HoodieTestUtils.doesInflightExist(basePath, commitTime2));
@@ -244,6 +247,7 @@ public class TestClientRollback extends TestHoodieClientBase {
           || HoodieTestUtils.doesDataFileExist(basePath, "2016/05/06", commitTime2, file23));
 
       // Let's rollback commit1, Check results
+      Thread.sleep(1000);
       client.rollback(commitTime1);
       assertFalse(HoodieTestUtils.doesCommitExist(basePath, commitTime1));
       assertFalse(HoodieTestUtils.doesInflightExist(basePath, commitTime1));

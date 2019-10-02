@@ -179,10 +179,11 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
       boolean deleteInstants) throws IOException {
 
     String commit = instant.getTimestamp();
+    logger.error("Rolling back instant " + instant);
 
     // Atomically un-publish all non-inflight commits
-    if (!instant.isInflight()) {
-      logger.error("Un-publishing instant " + instant);
+    if (instant.isCompleted()) {
+      logger.error("Un-publishing instant " + instant + ", deleteInstants=" + deleteInstants);
       this.getActiveTimeline().revertToInflight(instant);
       // Mark as inflight
       instant = new HoodieInstant(State.INFLIGHT, instant.getAction(),

@@ -399,8 +399,9 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
 
     // Remove the rolled back inflight commits
     if (deleteInstant) {
+      System.out.println("Deleting instant=" + instantToBeDeleted);
       activeTimeline.deletePending(instantToBeDeleted);
-      if (instantToBeDeleted.isInflight()) {
+      if (instantToBeDeleted.isInflight() && !metaClient.getMetadataVersion().isPre051Format()) {
         // Delete corresponding requested instant
         instantToBeDeleted = new HoodieInstant(State.REQUESTED, instantToBeDeleted.getAction(),
             instantToBeDeleted.getTimestamp());

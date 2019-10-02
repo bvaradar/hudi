@@ -1018,6 +1018,8 @@ public class TestMergeOnReadTable extends HoodieClientTestHarness {
       table = HoodieTable.getHoodieTable(new HoodieTableMetaClient(jsc.hadoopConfiguration(), basePath), config, jsc);
       tableRTFileSystemView = table.getRTFileSystemView();
       ((SyncableFileSystemView) tableRTFileSystemView).reset();
+      Option<HoodieInstant> lastInstant = ((SyncableFileSystemView) tableRTFileSystemView).getLastInstant();
+      System.out.println("Last Instant =" + lastInstant);
       for (String partitionPath : dataGen.getPartitionPaths()) {
         Assert.assertTrue(tableRTFileSystemView.getLatestFileSlices(partitionPath).filter(fileSlice ->
             fileSlice.getDataFile().isPresent()).count() == 0);

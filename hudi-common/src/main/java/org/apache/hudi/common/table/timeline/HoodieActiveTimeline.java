@@ -388,10 +388,18 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
           }
         }
       } else {
-        // If inflight file does not exist, create one
+        Path requestedInstantFilePath = new Path(metaClient.getMetaPath(),
+            new HoodieInstant(State.REQUESTED, inflight.getAction(), inflight.getTimestamp()).getFileName());
+
+        // If inflight and requested files do not exist, create one
+        if (!metaClient.getFs().exists(requestedInstantFilePath)) {
+          metaClient.getFs().create(requestedInstantFilePath, false).close();
+        }
+
         if (!metaClient.getFs().exists(inFlightCommitFilePath)) {
           metaClient.getFs().create(inFlightCommitFilePath, false).close();
         }
+
         boolean success = metaClient.getFs().delete(commitFilePath, false);
         Preconditions.checkArgument(success, "State Reverting failed");
       }

@@ -184,10 +184,7 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
     // Atomically un-publish all non-inflight commits
     if (instant.isCompleted()) {
       logger.error("Un-publishing instant " + instant + ", deleteInstants=" + deleteInstants);
-      this.getActiveTimeline().revertToInflight(instant);
-      // Mark as inflight
-      instant = new HoodieInstant(State.INFLIGHT, instant.getAction(),
-          instant.getTimestamp());
+      instant = this.getActiveTimeline().revertToInflight(instant);
     }
 
     final HoodieInstant instantToRollback = instant;

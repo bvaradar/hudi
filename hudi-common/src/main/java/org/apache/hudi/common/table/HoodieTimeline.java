@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.timeline.HoodieDefaultTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieInstant.State;
@@ -234,7 +235,10 @@ public interface HoodieTimeline extends Serializable {
     return new HoodieInstant(State.INFLIGHT, COMPACTION_ACTION, timestamp);
   }
 
-  static HoodieInstant getInflightInstant(final HoodieInstant instant) {
+  static HoodieInstant getInflightInstant(final HoodieInstant instant, final HoodieTableType tableType) {
+    if ((tableType == HoodieTableType.MERGE_ON_READ) && instant.getAction().equals(COMMIT_ACTION)) {
+      return new HoodieInstant(true, COMPACTION_ACTION, instant.getTimestamp());
+    }
     return new HoodieInstant(true, instant.getAction(), instant.getTimestamp());
   }
 

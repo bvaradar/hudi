@@ -703,12 +703,14 @@ public class TestCleaner extends TestHoodieClientBase {
     HoodieTable table = HoodieTable.getHoodieTable(
         new HoodieTableMetaClient(jsc.hadoopConfiguration(), config.getBasePath(), true), config,
         jsc);
-    table.getActiveTimeline().createNewInstant(new HoodieInstant(State.REQUESTED,
-        HoodieTimeline.COMMIT_ACTION, "000"));
-    table.getActiveTimeline().createNewInstant(new HoodieInstant(State.INFLIGHT,
-        HoodieTimeline.COMMIT_ACTION, "000"));
+    List<HoodieInstant> activeInstants = table.getActiveTimeline().reload().getInstants().collect(Collectors.toList());
+    System.out.println("Active Instants =" + activeInstants);
+
     table.rollback(jsc, new HoodieInstant(true, HoodieTimeline.COMMIT_ACTION, "000"), true);
     assertEquals("All temp files are deleted.", 0, getTotalTempFiles());
+    activeInstants = table.getActiveTimeline().reload().getInstants().collect(Collectors.toList());
+    System.out.println("Active Instants =" + activeInstants);
+    assertTrue(activeInstants.isEmpty());
   }
 
   /**

@@ -358,9 +358,7 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
 
     if (instant.isCompleted()) {
       logger.info("Unpublishing instant " + instant);
-      activeTimeline.revertToInflight(instant);
-      // Mark as inflight
-      instant = new HoodieInstant(State.INFLIGHT, instant.getAction(), instant.getTimestamp());
+      instant = activeTimeline.revertToInflight(instant);
     }
 
     // For Requested State (like failure during index lookup), there is nothing to do rollback other than

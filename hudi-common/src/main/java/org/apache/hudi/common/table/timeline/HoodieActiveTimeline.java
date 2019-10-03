@@ -231,10 +231,12 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     log.info("Completed " + instant);
   }
 
-  public void revertToInflight(HoodieInstant instant) {
+  public HoodieInstant revertToInflight(HoodieInstant instant) {
     log.info("Reverting instant to inflight " + instant);
-    revertCompleteToInflight(instant, HoodieTimeline.getInflightInstant(instant));
-    log.info("Reverted " + instant + " to inflight");
+    HoodieInstant inflight = HoodieTimeline.getInflightInstant(instant, metaClient.getTableType());
+    revertCompleteToInflight(instant, inflight);
+    log.info("Reverted " + instant + " to inflight " + inflight);
+    return inflight;
   }
 
   public void deleteInflight(HoodieInstant instant) {

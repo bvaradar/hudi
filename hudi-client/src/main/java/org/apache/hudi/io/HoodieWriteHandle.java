@@ -27,6 +27,7 @@ import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.HoodieTimer;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
+import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.exception.HoodieIOException;
@@ -59,11 +60,18 @@ public abstract class HoodieWriteHandle<T extends HoodieRecordPayload> extends H
 
   public HoodieWriteHandle(HoodieWriteConfig config, String instantTime, String partitionPath,
                            String fileId, HoodieTable<T> hoodieTable, SparkTaskContextSupplier sparkTaskContextSupplier) {
+    this(config, instantTime, partitionPath, fileId, hoodieTable, generateOriginalAndHoodieWriteSchema(config),
+        sparkTaskContextSupplier);
+  }
+
+  protected HoodieWriteHandle(HoodieWriteConfig config, String instantTime, String partitionPath, String fileId,
+      HoodieTable<T> hoodieTable, Pair<Schema, Schema> originalAndHoodieSchema,
+      SparkTaskContextSupplier sparkTaskContextSupplier) {
     super(config, instantTime, hoodieTable);
     this.partitionPath = partitionPath;
     this.fileId = fileId;
-    this.originalSchema = new Schema.Parser().parse(config.getSchema());
-    this.writerSchema = createHoodieWriteSchema(originalSchema);
+    this.originalSchema = originalAndHoodieSchema.getKey();
+    this.writerSchema = originalAndHoodieSchema.getValue();
     this.timer = new HoodieTimer().startTimer();
     this.writeStatus = (WriteStatus) ReflectionUtils.loadClass(config.getWriteStatusClassName(),
         !hoodieTable.getIndex().isImplicitWithStorage(), config.getWriteStatusFailureFraction());
@@ -71,15 +79,17 @@ public abstract class HoodieWriteHandle<T extends HoodieRecordPayload> extends H
     this.writeToken = makeWriteToken();
   }
 
+  protected static Pair<Schema, Schema> generateOriginalAndHoodieWriteSchema(HoodieWriteConfig config) {
+    Schema originalSchema = new Schema.Parser().parse(config.getSchema());
+    Schema hoodieSchema = HoodieAvroUtils.addMetadataFields(originalSchema);
+    return Pair.of(originalSchema, hoodieSchema);
+  }
+
   /**
    * Generate a write token based on the currently running spark task and its place in the spark dag.
    */
   private String makeWriteToken() {
     return FSUtils.makeWriteToken(getPartitionId(), getStageId(), getAttemptId());
-  }
-
-  public static Schema createHoodieWriteSchema(Schema originalSchema) {
-    return HoodieAvroUtils.addMetadataFields(originalSchema);
   }
 
   public Path makeNewPath(String partitionPath) {

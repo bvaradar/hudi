@@ -28,12 +28,17 @@ import org.apache.hudi.avro.model.HoodieRollbackMetadata;
 import org.apache.hudi.avro.model.HoodieSavepointMetadata;
 import org.apache.hudi.client.SparkTaskContextSupplier;
 import org.apache.hudi.client.WriteStatus;
+import org.apache.hudi.client.bootstrap.BootstrapKeyGenerator;
+import org.apache.hudi.client.bootstrap.BootstrapWriteStatus;
+import org.apache.hudi.client.bootstrap.BootstrapWriteStatus.BootstrapSourceFileInfo;
+import org.apache.hudi.common.HoodieRollbackStat;
 import org.apache.hudi.common.config.SerializableConfiguration;
 import org.apache.hudi.common.fs.ConsistencyGuard;
 import org.apache.hudi.common.fs.ConsistencyGuard.FileVisibility;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.fs.FailSafeConsistencyGuard;
 import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieWriteStat;
@@ -342,6 +347,13 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
    */
   public abstract JavaRDD<WriteStatus> compact(JavaSparkContext jsc, String compactionInstantTime,
       HoodieCompactionPlan compactionPlan);
+
+  /**
+   * Perform metadata/full bootstrap of a Hudi table.
+   * @param jsc JavaSparkContext
+   * @return HoodieCommitMetadata
+   */
+  public abstract HoodieCommitMetadata bootstrap(JavaSparkContext jsc);
 
   /**
    * Executes a new clean action.

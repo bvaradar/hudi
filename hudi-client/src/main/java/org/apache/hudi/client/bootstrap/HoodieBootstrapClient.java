@@ -19,8 +19,12 @@
 package org.apache.hudi.client.bootstrap;
 
 import org.apache.hudi.client.AbstractHoodieClient;
-import org.apache.hudi.client.bootstrap.BootstrapWriteStatus.BootstrapSourceFileInfo;
 import org.apache.hudi.client.embedded.EmbeddedTimelineService;
+import org.apache.hudi.common.util.Option;
+import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.hudi.metrics.HoodieMetrics;
+/**
+import org.apache.hudi.client.bootstrap.BootstrapWriteStatus.BootstrapSourceFileInfo;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieRollingStat;
@@ -31,31 +35,22 @@ import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieInstant.State;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
-import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
 import org.apache.hudi.common.util.SerializationUtils;
 import org.apache.hudi.common.util.collection.Pair;
-import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieCommitException;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.metrics.HoodieMetrics;
 import org.apache.hudi.table.HoodieTable;
+**/
 
 import com.codahale.metrics.Timer;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
+//import org.apache.hadoop.fs.Path;
+//import org.apache.hadoop.fs.PathFilter;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.apache.spark.api.java.JavaRDD;
+//import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public class HoodieBootstrapClient extends AbstractHoodieClient {
 
@@ -79,17 +74,18 @@ public class HoodieBootstrapClient extends AbstractHoodieClient {
     this.metrics = new HoodieMetrics(config, config.getTableName());
   }
 
+  /*
   public void bootstrap() throws IOException {
     writeContext = metrics.getCommitCtx();
     HoodieTableMetaClient metaClient = createMetaClient(false);
     HoodieTable table = HoodieTable.create(metaClient, config, jsc);
     metaClient.getActiveTimeline().createNewInstant(
-        new HoodieInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, HoodieTimeline.BOOTSTRAP_INSTANT_TS));
+        new HoodieInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS));
 
     Map<BootstrapMode, List<Pair<String, List<String>>>> partitionSelections =
         listSourcePartitionsAndTagBootstrapMode(metaClient);
     table.getActiveTimeline().transitionRequestedToInflight(new HoodieInstant(State.REQUESTED,
-        HoodieTimeline.COMMIT_ACTION, HoodieTimeline.BOOTSTRAP_INSTANT_TS), Option.empty());
+        HoodieTimeline.COMMIT_ACTION, HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS), Option.empty());
     JavaRDD<BootstrapWriteStatus> writeStatuses =
         runMetadataBootstrap(table, partitionSelections.get(BootstrapMode.METADATA_ONLY_BOOTSTRAP));
     List<Pair<BootstrapSourceFileInfo, HoodieWriteStat>> bootstrapSourceAndStats =
@@ -107,7 +103,7 @@ public class HoodieBootstrapClient extends AbstractHoodieClient {
         (FlatMapFunction<Iterator<List<Pair<BootstrapSourceFileInfo, HoodieWriteStat>>>,
             Pair<String, Pair<String, Long>>>) listIterator -> {
           DataPayloadWriter writer = bootstrapMetadataStorage.getDataPayloadWriter(
-              HoodieTimeline.BOOTSTRAP_INSTANT_TS, config.getBootstrapMetadataWriterMaxFileSizeInBytes());
+              HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, config.getBootstrapMetadataWriterMaxFileSizeInBytes());
           try {
             while (listIterator.hasNext()) {
               List<Pair<BootstrapSourceFileInfo, HoodieWriteStat>> sourceAndStat = listIterator.next();
@@ -126,12 +122,12 @@ public class HoodieBootstrapClient extends AbstractHoodieClient {
 
     // Write Index to bootstrap metadata
     final CompositeMapFile.IndexWriter indexWriter = bootstrapMetadataStorage.getIndexWriter(null,
-        HoodieTimeline.BOOTSTRAP_INSTANT_TS);
+        HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS);
     indexWriter.addIndexEntries(partitionToFileOfssets.stream());
     indexWriter.commit();
     logger.info("Bootstrap Metadata Index written !!");
 
-    commit(HoodieTimeline.BOOTSTRAP_INSTANT_TS, sourceStatsByPartition.stream()
+    commit(HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, sourceStatsByPartition.stream()
             .flatMap(sourceStat -> sourceStat.stream().map(s -> s.getRight())).collect(Collectors.toList()),
         Option.empty(), HoodieTimeline.COMMIT_ACTION);
   }
@@ -284,4 +280,5 @@ public class HoodieBootstrapClient extends AbstractHoodieClient {
       throw new HoodieCommitException("Failed to complete commit " + instantTime + " due to finalize errors.", ioe);
     }
   }
+  */
 }

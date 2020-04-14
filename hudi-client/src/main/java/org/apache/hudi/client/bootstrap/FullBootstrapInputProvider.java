@@ -16,32 +16,32 @@
  * limitations under the License.
  */
 
-package org.apache.hudi.client.bootstrap.selector;
+package org.apache.hudi.client.bootstrap;
 
-import org.apache.hudi.client.bootstrap.BootstrapMode;
+import org.apache.hudi.common.config.TypedProperties;
+import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.collection.Pair;
-import org.apache.hudi.config.HoodieWriteConfig;
 
-import java.io.Serializable;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+
 import java.util.List;
-import java.util.Map;
 
-/**
- * Pluggable Partition Selector for selecting partitions to perform full or metadata-only bootstrapping.
- */
-public abstract class BootstrapPartitionSelector implements Serializable {
+public abstract class FullBootstrapInputProvider {
 
-  protected final HoodieWriteConfig writeConfig;
+  protected final TypedProperties props;
+  protected final JavaSparkContext jsc;
 
-  public BootstrapPartitionSelector(HoodieWriteConfig writeConfig) {
-    this.writeConfig = writeConfig;
+  public FullBootstrapInputProvider(TypedProperties props, JavaSparkContext jsc) {
+    this.props = props;
+    this.jsc = jsc;
   }
 
   /**
-   * Classify partitions for the purpose of bootstrapping.
-   * @param partitions List of partitions with files present in each partitions
-   * @return a partitions grouped by bootstrap mode
+   * Generates a list of input partition and files and returns a RDD representing source.
+   * @param partitionPaths Partition Paths
+   * @return JavaRDD of input records
    */
-  public abstract Map<BootstrapMode, List<String>> select(
-      List<Pair<String, List<String>>> partitions);
+  public abstract JavaRDD<HoodieRecord> generateInputRecordRDD(String tableName,
+      List<Pair<String, List<String>>> partitionPaths);
 }

@@ -56,8 +56,8 @@ import java.util.Map;
 
 import scala.Tuple2;
 
-public abstract class BaseCommitActionExecutor<T extends HoodieRecordPayload<T>>
-    extends BaseActionExecutor<HoodieWriteMetadata> {
+public abstract class BaseCommitActionExecutor<T extends HoodieRecordPayload<T>, R>
+    extends BaseActionExecutor<R> {
 
   private static final Logger LOG = LogManager.getLogger(BaseCommitActionExecutor.class);
 
@@ -179,7 +179,7 @@ public abstract class BaseCommitActionExecutor<T extends HoodieRecordPayload<T>>
     }
   }
 
-  private void commit(Option<Map<String, String>> extraMetadata, HoodieWriteMetadata result) {
+  protected void commit(Option<Map<String, String>> extraMetadata, HoodieWriteMetadata result) {
     String actionType = table.getMetaClient().getCommitActionType();
     LOG.info("Committing " + instantTime + ", action Type " + actionType);
     // Create a Hoodie table which encapsulated the commits and files visible

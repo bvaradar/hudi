@@ -137,13 +137,13 @@ public class BootstrapIndex implements Serializable, AutoCloseable {
 
   private static Path getIndexByPartitionPath(HoodieTableMetaClient metaClient) {
     return new Path(metaClient.getBootstrapIndexByPartitionFolderName(),
-        FSUtils.makeBootstrapIndexFileName(HoodieTimeline.BOOTSTRAP_INSTANT_TS, BOOTSTRAP_INDEX_FILE_ID,
+        FSUtils.makeBootstrapIndexFileName(HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, BOOTSTRAP_INDEX_FILE_ID,
             BOOTSTRAP_INDEX_FILE_TYPE));
   }
 
   private static Path getIndexByFileIdPath(HoodieTableMetaClient metaClient) {
     return new Path(metaClient.getBootstrapIndexByFileIdFolderNameFolderName(),
-        FSUtils.makeBootstrapIndexFileName(HoodieTimeline.BOOTSTRAP_INSTANT_TS, BOOTSTRAP_INDEX_FILE_ID,
+        FSUtils.makeBootstrapIndexFileName(HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, BOOTSTRAP_INDEX_FILE_ID,
             BOOTSTRAP_INDEX_FILE_TYPE));
   }
 

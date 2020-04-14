@@ -16,10 +16,26 @@
  * limitations under the License.
  */
 
-package org.apache.hudi.client.bootstrap;
+package org.apache.hudi.table.action.bootstrap;
 
-public enum BootstrapMode {
-  FULL_BOOTSTRAP,
-  METADATA_ONLY_BOOTSTRAP,
-  SKIP
+import org.apache.hudi.table.action.commit.HoodieWriteMetadata;
+
+public class HoodieBootstrapWriteMetadata {
+
+  private final HoodieWriteMetadata metadataBootstrapResult;
+  private final HoodieWriteMetadata fullBootstrapResult;
+
+  public HoodieBootstrapWriteMetadata(HoodieWriteMetadata metadataBootstrapResult,
+      HoodieWriteMetadata fullBootstrapResult) {
+    this.metadataBootstrapResult = metadataBootstrapResult;
+    this.fullBootstrapResult = fullBootstrapResult;
+  }
+
+  public HoodieWriteMetadata getMetadataBootstrapResult() {
+    return metadataBootstrapResult;
+  }
+
+  public HoodieWriteMetadata getFullBootstrapResult() {
+    return fullBootstrapResult;
+  }
 }

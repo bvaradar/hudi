@@ -101,6 +101,7 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
 
   private static final String SOURCE_BASE_PATH_PROP = "hoodie.bootstrap.source.base.path";
   private static final String BOOTSTRAP_PARTITION_SELECTOR = "hoodie.bootstrap.partition.selector";
+  private static final String FULL_BOOTRAP_INPUT_PROVIDER = "hoodie.bootstrap.full.input.provider";
   // Expect configurations of format col1,col2,col3 ....
   private static final String BOOTSTRAP_RECORDKEY_COLUMNS = "hoodie.bootstrap.recordkey.columns";
   private static final String BOOTSTRAP_PARALLELISM = "hoodie.bootstrap.parallelism";
@@ -556,6 +557,10 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
     return props.getProperty(BOOTSTRAP_PARTITION_SELECTOR);
   }
 
+  public String getFullBootstrapInputProvider() {
+    return props.getProperty(FULL_BOOTRAP_INPUT_PROVIDER);
+  }
+
   public String getBootstrapRecordKeyColumns() {
     return props.getProperty(BOOTSTRAP_RECORDKEY_COLUMNS);
   }
@@ -730,6 +735,11 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
 
     public Builder withBootstrapPartitionSelector(String partitionSelectorClass) {
       props.setProperty(BOOTSTRAP_PARTITION_SELECTOR, partitionSelectorClass);
+      return this;
+    }
+
+    public Builder withFullBootstrapInputProvider(String partitionSelectorClass) {
+      props.setProperty(FULL_BOOTRAP_INPUT_PROVIDER, partitionSelectorClass);
       return this;
     }
 

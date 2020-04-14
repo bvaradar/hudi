@@ -157,6 +157,16 @@ public class HoodieWriteClient<T extends HoodieRecordPayload> extends AbstractHo
     return recordsWithLocation.filter(v1 -> !v1.isCurrentLocationKnown());
   }
 
+  public void bootstrap() {
+    HoodieTable<T> table = getTableAndInitCtx(WriteOperationType.UPSERT);
+    table.bootstrap(jsc);
+  }
+
+  public void rollBackBootstrap() {
+    HoodieTable<T> table = getTableAndInitCtx(WriteOperationType.UPSERT);
+    table.rollbackBootstrap(jsc);
+  }
+
   /**
    * Upsert a batch of new records into Hoodie table at the supplied instantTime.
    *

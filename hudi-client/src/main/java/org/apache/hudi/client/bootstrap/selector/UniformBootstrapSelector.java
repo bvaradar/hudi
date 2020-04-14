@@ -39,8 +39,9 @@ public abstract class UniformBootstrapSelector extends BootstrapPartitionSelecto
   }
 
   @Override
-  public Map<BootstrapMode, List<Pair<String, List<String>>>> select(List<Pair<String, List<String>>> partitions) {
+  public Map<BootstrapMode, List<String>> select(List<Pair<String, List<String>>> partitions) {
     return partitions.stream().map(p -> Pair.of(bootstrapMode, p))
-        .collect(Collectors.groupingBy(Pair::getKey, Collectors.mapping(x -> x.getValue(), Collectors.toList())));
+        .collect(Collectors.groupingBy(Pair::getKey, Collectors.mapping(x -> x.getValue().getKey(),
+            Collectors.toList())));
   }
 }

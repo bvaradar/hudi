@@ -307,7 +307,7 @@ public class TestHoodieTableFileSystemView extends HoodieCommonTestHarness {
         .build();
 
     // if skipCreatingDataFile, then instantTime1 below acts like delta-commit, otherwise it is base-commit
-    String instantTime1 = testBootstrap && !skipCreatingDataFile ? HoodieTimeline.BOOTSTRAP_INSTANT_TS : "1";
+    String instantTime1 = testBootstrap && !skipCreatingDataFile ? HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS : "1";
     String deltaInstantTime1 = "2";
     String deltaInstantTime2 = "3";
 

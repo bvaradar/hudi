@@ -28,17 +28,12 @@ import org.apache.hudi.avro.model.HoodieRollbackMetadata;
 import org.apache.hudi.avro.model.HoodieSavepointMetadata;
 import org.apache.hudi.client.SparkTaskContextSupplier;
 import org.apache.hudi.client.WriteStatus;
-import org.apache.hudi.client.bootstrap.BootstrapKeyGenerator;
-import org.apache.hudi.client.bootstrap.BootstrapWriteStatus;
-import org.apache.hudi.client.bootstrap.BootstrapWriteStatus.BootstrapSourceFileInfo;
-import org.apache.hudi.common.HoodieRollbackStat;
 import org.apache.hudi.common.config.SerializableConfiguration;
 import org.apache.hudi.common.fs.ConsistencyGuard;
 import org.apache.hudi.common.fs.ConsistencyGuard.FileVisibility;
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.fs.FailSafeConsistencyGuard;
 import org.apache.hudi.common.model.HoodieKey;
-import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieWriteStat;
@@ -61,6 +56,7 @@ import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.exception.HoodieSavepointException;
 import org.apache.hudi.index.HoodieIndex;
+import org.apache.hudi.table.action.bootstrap.HoodieBootstrapWriteMetadata;
 import org.apache.hudi.table.action.commit.HoodieWriteMetadata;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -351,9 +347,15 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
   /**
    * Perform metadata/full bootstrap of a Hudi table.
    * @param jsc JavaSparkContext
-   * @return HoodieCommitMetadata
+   * @return HoodieBootstrapWriteMetadata
    */
-  public abstract HoodieCommitMetadata bootstrap(JavaSparkContext jsc);
+  public abstract HoodieBootstrapWriteMetadata bootstrap(JavaSparkContext jsc);
+
+  /**
+   * Perform rollback of bootstrap of a Hudi table.
+   * @param jsc JavaSparkContext
+   */
+  public abstract void rollbackBootstrap(JavaSparkContext jsc);
 
   /**
    * Executes a new clean action.

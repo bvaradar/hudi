@@ -52,7 +52,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class CommitActionExecutor<T extends HoodieRecordPayload<T>>
-    extends BaseCommitActionExecutor<T> {
+    extends BaseCommitActionExecutor<T, HoodieWriteMetadata> {
 
   private static final Logger LOG = LogManager.getLogger(CommitActionExecutor.class);
 

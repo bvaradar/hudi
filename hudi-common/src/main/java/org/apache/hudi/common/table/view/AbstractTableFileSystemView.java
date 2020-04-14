@@ -18,7 +18,7 @@
 
 package org.apache.hudi.common.table.view;
 
-import static org.apache.hudi.common.table.timeline.HoodieTimeline.BOOTSTRAP_INSTANT_TS;
+import static org.apache.hudi.common.table.timeline.HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS;
 
 import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.bootstrap.BootstrapIndex;
@@ -328,10 +328,10 @@ public abstract class AbstractTableFileSystemView implements SyncableFileSystemV
 
   protected HoodieFileGroup addExternalBaseFileIfPresent(HoodieFileGroup fileGroup) {
     boolean hasExternalBaseFile = fileGroup.getAllFileSlices()
-        .anyMatch(fs -> fs.getBaseInstantTime().equals(BOOTSTRAP_INSTANT_TS));
+        .anyMatch(fs -> fs.getBaseInstantTime().equals(METADATA_BOOTSTRAP_INSTANT_TS));
     if (hasExternalBaseFile) {
       HoodieFileGroup newFileGroup = new HoodieFileGroup(fileGroup);
-      newFileGroup.getAllFileSlices().filter(fs -> fs.getBaseInstantTime().equals(BOOTSTRAP_INSTANT_TS))
+      newFileGroup.getAllFileSlices().filter(fs -> fs.getBaseInstantTime().equals(METADATA_BOOTSTRAP_INSTANT_TS))
           .forEach(fs -> fs.setBaseFile(
               addExternalBaseFileIfPresent(fs.getFileGroupId(), fs.getBaseFile().get())));
       return newFileGroup;
@@ -340,7 +340,7 @@ public abstract class AbstractTableFileSystemView implements SyncableFileSystemV
   }
 
   protected FileSlice addExternalBaseFileIfPresent(FileSlice fileSlice) {
-    if (fileSlice.getBaseInstantTime().equals(BOOTSTRAP_INSTANT_TS)) {
+    if (fileSlice.getBaseInstantTime().equals(METADATA_BOOTSTRAP_INSTANT_TS)) {
       FileSlice copy = new FileSlice(fileSlice);
       copy.getBaseFile().ifPresent(dataFile -> {
         Option<ExternalBaseFileMapping> edf = getExternalBaseFile(copy.getFileGroupId());
@@ -352,7 +352,7 @@ public abstract class AbstractTableFileSystemView implements SyncableFileSystemV
   }
 
   protected HoodieBaseFile addExternalBaseFileIfPresent(HoodieFileGroupId fileGroupId, HoodieBaseFile baseFile) {
-    if (baseFile.getCommitTime().equals(BOOTSTRAP_INSTANT_TS)) {
+    if (baseFile.getCommitTime().equals(METADATA_BOOTSTRAP_INSTANT_TS)) {
       HoodieBaseFile copy = new HoodieBaseFile(baseFile);
       Option<ExternalBaseFileMapping> edf = getExternalBaseFile(fileGroupId);
       edf.ifPresent(e -> copy.setExternalBaseFile(e.getExternalBaseFile()));

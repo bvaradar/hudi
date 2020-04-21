@@ -146,6 +146,7 @@ public class BootstrapCommitActionExecutor<T extends HoodieRecordPayload<T>>
     }
   }
 
+  @Override
   protected String getSchemaToStoreInCommit() {
     return bootstrapSchema;
   }

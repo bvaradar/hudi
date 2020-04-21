@@ -18,6 +18,7 @@
 
 package org.apache.hudi.client.bootstrap;
 
+import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.avro.model.HoodieFileStatus;
 import org.apache.hudi.common.bootstrap.FileStatusUtils;
 import org.apache.hudi.common.util.ParquetUtils;
@@ -50,7 +51,10 @@ public class BootstrapSourceSchemaProvider {
   public final Schema getBootstrapSchema(JavaSparkContext jsc, List<Pair<String, List<HoodieFileStatus>>> partitions) {
     if (bootstrapConfig.getSchema() != null) {
       // Use schema specified by user if set
-      return Schema.parse(bootstrapConfig.getSchema());
+      Schema userSchema = Schema.parse(bootstrapConfig.getSchema());
+      if (!HoodieAvroUtils.getNullSchema().equals(userSchema)) {
+        return userSchema;
+      }
     }
     return getBootstrapSourceSchema(jsc, partitions);
   }

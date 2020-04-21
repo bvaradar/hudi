@@ -381,4 +381,8 @@ public class HoodieAvroUtils {
         fieldName + "(Part -" + parts[i] + ") field not found in record. Acceptable fields were :"
             + valueNode.getSchema().getFields().stream().map(Field::name).collect(Collectors.toList()));
   }
+
+  public static Schema getNullSchema() {
+    return Schema.create(Schema.Type.NULL);
+  }
 }

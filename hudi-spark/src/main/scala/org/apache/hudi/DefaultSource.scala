@@ -18,6 +18,7 @@
 package org.apache.hudi
 
 import org.apache.hudi.DataSourceReadOptions._
+import org.apache.hudi.DataSourceWriteOptions.{BOOTSTRAP_OPERATION_OPT_VAL, OPERATION_OPT_KEY}
 import org.apache.hudi.exception.HoodieException
 import org.apache.hudi.hadoop.HoodieROTablePathFilter
 import org.apache.log4j.LogManager
@@ -105,7 +106,12 @@ class DefaultSource extends RelationProvider
                               df: DataFrame): BaseRelation = {
 
     val parameters = HoodieSparkSqlWriter.parametersWithWriteDefaults(optParams)
-    HoodieSparkSqlWriter.write(sqlContext, mode, parameters, df)
+
+    if (parameters(OPERATION_OPT_KEY).equals(BOOTSTRAP_OPERATION_OPT_VAL)) {
+      HoodieSparkSqlWriter.bootstrap(sqlContext, mode, parameters, df)
+    } else {
+      HoodieSparkSqlWriter.write(sqlContext, mode, parameters, df)
+    }
 
     new HudiEmptyRelation(sqlContext, df.schema)
   }

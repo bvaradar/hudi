@@ -102,7 +102,7 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
 
   private ConsistencyGuardConfig consistencyGuardConfig;
 
-  private static final String SOURCE_BASE_PATH_PROP = "hoodie.bootstrap.source.base.path";
+  public static final String SOURCE_BASE_PATH_PROP = "hoodie.bootstrap.source.base.path";
   private static final String BOOTSTRAP_MODE_SELECTOR = "hoodie.bootstrap.mode.selector";
   private static final String FULL_BOOTRAP_INPUT_PROVIDER = "hoodie.bootstrap.full.input.provider";
   // Expect configurations of format col1,col2,col3 ....

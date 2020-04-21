@@ -24,6 +24,7 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hudi.DataSourceWriteOptions._
+import org.apache.hudi.avro.HoodieAvroUtils
 import org.apache.hudi.client.{HoodieWriteClient, WriteStatus}
 import org.apache.hudi.common.fs.FSUtils
 import org.apache.hudi.common.model.HoodieRecordPayload
@@ -34,6 +35,7 @@ import org.apache.hudi.config.HoodieWriteConfig
 import org.apache.hudi.exception.HoodieException
 import org.apache.hudi.hive.{HiveSyncConfig, HiveSyncTool}
 import org.apache.log4j.LogManager
+import org.apache.spark.SparkContext
 import org.apache.spark.api.java.{JavaRDD, JavaSparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
@@ -60,7 +62,6 @@ private[hudi] object HoodieSparkSqlWriter {
       case Some(ser) if ser.equals("org.apache.spark.serializer.KryoSerializer") =>
       case _ => throw new HoodieException("hoodie only support org.apache.spark.serializer.KryoSerializer as spark.serializer")
     }
-    val tableType = parameters(TABLE_TYPE_OPT_KEY)
     val operation =
     // It does not make sense to allow upsert() operation if INSERT_DROP_DUPS_OPT_KEY is true
     // Auto-correct the operation to "insert" if OPERATION_OPT_KEY is set to "upsert" wrongly
@@ -105,25 +106,7 @@ private[hudi] object HoodieSparkSqlWriter {
           orderingVal, keyGenerator.getKey(gr), parameters(PAYLOAD_CLASS_OPT_KEY))
       }).toJavaRDD()
 
-      // Handle various save modes
-      if (mode == SaveMode.ErrorIfExists && exists) {
-        throw new HoodieException(s"hoodie table at $basePath already exists.")
-      }
-      if (mode == SaveMode.Ignore && exists) {
-        log.warn(s"hoodie table at $basePath already exists. Ignoring & not performing actual writes.")
-        (true, common.util.Option.empty())
-      }
-      if (mode == SaveMode.Overwrite && exists) {
-        log.warn(s"hoodie table at $basePath already exists. Deleting existing data & overwriting with new data.")
-        fs.delete(basePath, true)
-        exists = false
-      }
-
-      // Create the table if not present
-      if (!exists) {
-        HoodieTableMetaClient.initTableType(sparkContext.hadoopConfiguration, path.get, tableType,
-          tblName.get, "archived", parameters(PAYLOAD_CLASS_OPT_KEY))
-      }
+      initTable(mode, basePath, fs, exists, sparkContext, parameters)
 
       // Create a HoodieWriteClient & issue the write.
       val client = DataSourceUtils.createHoodieClient(jsc, schema.toString, path.get, tblName.get,
@@ -183,6 +166,37 @@ private[hudi] object HoodieSparkSqlWriter {
     (writeSuccessful, common.util.Option.ofNullable(instantTime))
   }
 
+  def bootstrap(sqlContext: SQLContext,
+                mode: SaveMode,
+                parameters: Map[String, String],
+                df: DataFrame): Unit = {
+
+    val sparkContext = sqlContext.sparkContext
+    val path = parameters.get("path")
+    val tableName = parameters.get(HoodieWriteConfig.TABLE_NAME)
+
+    var schema: String = null
+    if (df.schema.nonEmpty) {
+      val structName = s"${tableName.get}_record"
+      val nameSpace = s"hoodie.${tableName.get}"
+      schema = AvroConversionUtils.convertStructTypeToAvroSchema(df.schema, structName, nameSpace).toString
+    } else {
+      schema = HoodieAvroUtils.getNullSchema.toString
+    }
+
+    val basePath = new Path(parameters("path"))
+    val fs = basePath.getFileSystem(sparkContext.hadoopConfiguration)
+    val exists = fs.exists(new Path(basePath, HoodieTableMetaClient.METAFOLDER_NAME))
+
+    initTable(mode, basePath, fs, exists, sparkContext, parameters)
+
+    val jsc = new JavaSparkContext(sqlContext.sparkContext)
+    val writeClient = DataSourceUtils.createHoodieClient(jsc, schema, path.get, tableName.get,
+      mapAsJavaMap(parameters))
+    writeClient.bootstrap()
+    syncHiveIfEnabled(basePath, jsc, parameters)
+  }
+
   /**
     * Add default options for unspecified write options keys.
     *
@@ -218,6 +232,42 @@ private[hudi] object HoodieSparkSqlWriter {
     val props = new TypedProperties()
     params.foreach(kv => props.setProperty(kv._1, kv._2))
     props
+  }
+
+  private def initTable(mode: SaveMode, basePath: Path, fs: FileSystem, tableExists: Boolean,
+                        sparkContext: SparkContext, parameters: Map[String, String]): Unit = {
+    val tableName = parameters.get(HoodieWriteConfig.TABLE_NAME)
+    val tableType = parameters(TABLE_TYPE_OPT_KEY)
+
+    // Handle various save modes
+    if (mode == SaveMode.ErrorIfExists && tableExists) {
+      throw new HoodieException(s"hoodie table at $basePath already exists.")
+    }
+    if (mode == SaveMode.Ignore && tableExists) {
+      log.warn(s"hoodie table at $basePath already exists. Ignoring & not performing actual writes.")
+      (true, common.util.Option.empty())
+    }
+    if (mode == SaveMode.Overwrite && tableExists) {
+      log.warn(s"hoodie table at $basePath already exists. Deleting existing data & overwriting with new data.")
+      fs.delete(basePath, true)
+    }
+
+    // Create the table if not present
+    if (!tableExists) {
+      HoodieTableMetaClient.initTableType(sparkContext.hadoopConfiguration, basePath.toString, tableType,
+        tableName.get, "archived", parameters(PAYLOAD_CLASS_OPT_KEY))
+    }
+  }
+
+  private def syncHiveIfEnabled(basePath: Path, jsc: JavaSparkContext, parameters: Map[String, String]): Boolean = {
+    val hiveSyncEnabled = parameters.get(HIVE_SYNC_ENABLED_OPT_KEY).exists(r => r.toBoolean)
+    if (hiveSyncEnabled) {
+      log.info("Syncing to Hive Metastore (URL: " + parameters(HIVE_URL_OPT_KEY) + ")")
+      val fs = FSUtils.getFs(basePath.toString, jsc.hadoopConfiguration)
+      syncHive(basePath, fs, parameters)
+    } else {
+      true
+    }
   }
 
   private def syncHive(basePath: Path, fs: FileSystem, parameters: Map[String, String]): Boolean = {
@@ -270,16 +320,9 @@ private[hudi] object HoodieSparkSqlWriter {
         log.info("Commit " + instantTime + " failed!")
       }
 
-      val hiveSyncEnabled = parameters.get(HIVE_SYNC_ENABLED_OPT_KEY).exists(r => r.toBoolean)
-      val syncHiveSucess = if (hiveSyncEnabled) {
-        log.info("Syncing to Hive Metastore (URL: " + parameters(HIVE_URL_OPT_KEY) + ")")
-        val fs = FSUtils.getFs(basePath.toString, jsc.hadoopConfiguration)
-        syncHive(basePath, fs, parameters)
-      } else {
-        true
-      }
+      val syncHiveSuccess = syncHiveIfEnabled(basePath, jsc, parameters)
       client.close()
-      commitSuccess && syncHiveSucess
+      commitSuccess && syncHiveSuccess
     } else {
       log.error(s"$operation failed with $errorCount errors :")
       if (log.isTraceEnabled) {

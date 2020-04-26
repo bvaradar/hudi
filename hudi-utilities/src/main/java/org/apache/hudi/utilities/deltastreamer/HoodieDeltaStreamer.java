@@ -416,9 +416,14 @@ public class HoodieDeltaStreamer implements Serializable {
           jssc.setLocalProperty("spark.scheduler.pool", SchedulerConfGenerator.DELTASYNC_POOL_NAME);
         }
         try {
+          int counter = 1;
           while (!isShutdownRequested()) {
             try {
               long start = System.currentTimeMillis();
+              //in the first run, schemaProvider is already initialised to the latest.
+              if (counter > 1) {
+                deltaSync.refreshSchemaProvider(UtilHelpers.createSchemaProvider(cfg.schemaProviderClassName, props, jssc));
+              }
               Option<String> scheduledCompactionInstant = deltaSync.syncOnce();
               if (scheduledCompactionInstant.isPresent()) {
                 LOG.info("Enqueuing new pending compaction instant (" + scheduledCompactionInstant + ")");
@@ -432,6 +437,7 @@ public class HoodieDeltaStreamer implements Serializable {
                     + toSleepMs + " ms.");
                 Thread.sleep(toSleepMs);
               }
+              counter++;
             } catch (Exception e) {
               LOG.error("Shutting down delta-sync due to exception", e);
               error = true;

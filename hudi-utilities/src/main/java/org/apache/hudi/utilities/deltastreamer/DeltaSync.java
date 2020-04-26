@@ -162,18 +162,23 @@ public class DeltaSync implements Serializable {
     this.fs = fs;
     this.onInitializingHoodieWriteClient = onInitializingHoodieWriteClient;
     this.props = props;
-    this.schemaProvider = schemaProvider;
 
     refreshTimeline();
-
     this.transformer = UtilHelpers.createTransformer(cfg.transformerClassNames);
     this.keyGenerator = DataSourceUtils.createKeyGenerator(props);
-
-    this.formatAdapter = new SourceFormatAdapter(
-        UtilHelpers.createSource(cfg.sourceClassName, props, jssc, sparkSession, schemaProvider));
-
     this.conf = conf;
+    refreshSchemaProvider(schemaProvider);
+  }
 
+  /**
+   * Very useful when DeltaStreamer is running in continuous mode.
+   * @param schemaProvider
+   * @throws IOException
+   */
+  public void refreshSchemaProvider(SchemaProvider schemaProvider) throws IOException {
+    this.schemaProvider = schemaProvider;
+    this.formatAdapter = new SourceFormatAdapter(
+      UtilHelpers.createSource(cfg.sourceClassName, props, jssc, sparkSession, schemaProvider));
     // If schemaRegistry already resolved, setup write-client
     setupWriteClient();
   }

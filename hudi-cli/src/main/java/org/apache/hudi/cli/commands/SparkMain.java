@@ -55,7 +55,7 @@ public class SparkMain {
    * Commands.
    */
   enum SparkCommand {
-    ROLLBACK, DEDUPLICATE, ROLLBACK_TO_SAVEPOINT, SAVEPOINT, IMPORT, UPSERT, COMPACT_SCHEDULE, COMPACT_RUN,
+    BOOTSTRAP, ROLLBACK, DEDUPLICATE, ROLLBACK_TO_SAVEPOINT, SAVEPOINT, IMPORT, UPSERT, COMPACT_SCHEDULE, COMPACT_RUN,
     COMPACT_UNSCHEDULE_PLAN, COMPACT_UNSCHEDULE_FILE, COMPACT_VALIDATE, COMPACT_REPAIR, CLEAN, DELETE_SAVEPOINT
   }
 
@@ -70,6 +70,10 @@ public class SparkMain {
         : SparkUtil.initJavaSparkConf("hoodie-cli-" + command);
     int returnCode = 0;
     switch (cmd) {
+      case BOOTSTRAP:
+        assert (args.length == 8);
+        returnCode = doBootstrap(jsc, args[1], args[2], args[3], args[4], Integer.parseInt(args[5]), args[6], args[7]);
+        break;
       case ROLLBACK:
         assert (args.length == 3);
         returnCode = rollback(jsc, args[1], args[2]);

@@ -26,6 +26,7 @@ import org.apache.hudi.cli.HoodieTableHeaderFields;
 import org.apache.hudi.cli.TableHeader;
 import org.apache.hudi.client.HoodieWriteClient;
 import org.apache.hudi.common.HoodieTestDataGenerator;
+import org.apache.hudi.common.bootstrap.index.HFileBasedBootstrapIndex;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.model.HoodieTestUtils;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
@@ -64,7 +65,8 @@ public class TestRollbacksCommand extends AbstractShellIntegrationTest {
     String tablePath = basePath + File.separator + tableName;
     new TableCommand().createTable(
         tablePath, tableName, HoodieTableType.MERGE_ON_READ.name(),
-        "", TimelineLayoutVersion.VERSION_1, "org.apache.hudi.common.model.HoodieAvroPayload");
+        "", TimelineLayoutVersion.VERSION_1, "org.apache.hudi.common.model.HoodieAvroPayload",
+        HFileBasedBootstrapIndex.class.getName());
 
     //Create some commits files and parquet files
     String commitTime1 = "100";

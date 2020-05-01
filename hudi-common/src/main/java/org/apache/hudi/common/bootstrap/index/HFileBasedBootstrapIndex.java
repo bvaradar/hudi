@@ -166,7 +166,7 @@ public class HFileBasedBootstrapIndex extends BootstrapIndex {
   }
 
   @Override
-  protected boolean checkIndex() {
+  public boolean checkIndex() {
     return hasIndex;
   }
 

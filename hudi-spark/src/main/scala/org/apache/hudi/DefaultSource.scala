@@ -17,11 +17,16 @@
 
 package org.apache.hudi
 
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hudi.DataSourceReadOptions._
 import org.apache.hudi.DataSourceWriteOptions.{BOOTSTRAP_OPERATION_OPT_VAL, OPERATION_OPT_KEY}
+import org.apache.hudi.common.bootstrap.index.BootstrapIndex
+import org.apache.hudi.common.fs.FSUtils
+import org.apache.hudi.common.table.HoodieTableMetaClient
 import org.apache.hudi.exception.HoodieException
 import org.apache.hudi.hadoop.HoodieROTablePathFilter
 import org.apache.log4j.LogManager
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.execution.datasources.DataSource
 import org.apache.spark.sql.execution.datasources.SaveIntoDataSourceCommand
 import org.apache.spark.sql.execution.streaming.Sink
@@ -54,9 +59,6 @@ class DefaultSource extends RelationProvider
     // Add default options for unspecified read options keys.
     val parameters = Map(QUERY_TYPE_OPT_KEY -> DEFAULT_QUERY_TYPE_OPT_VAL) ++ translateViewTypesToQueryTypes(optParams)
 
-    // TODO: Determine whether table is bootstrapped or not
-    val isBootstrapped = true
-
     val path = parameters.get("path")
     if (path.isEmpty) {
       throw new HoodieException("'path' must be specified.")
@@ -64,8 +66,17 @@ class DefaultSource extends RelationProvider
 
     if (parameters(QUERY_TYPE_OPT_KEY).equals(QUERY_TYPE_SNAPSHOT_OPT_VAL)) {
 
-      if (isBootstrapped) {
-        new HudiBootstrapRelation(sqlContext, schema, path.get, optParams)
+      val fs = FSUtils.getFs(path.get, sqlContext.sparkContext.hadoopConfiguration)
+      val globPaths = checkAndGlobPathIfNecessary(path.get, fs)
+      val tablePath = DataSourceUtils.getTablePath(fs, globPaths.toArray)
+      log.info("Obtained hudi table path => " + tablePath)
+
+      val metaClient = new HoodieTableMetaClient(fs.getConf, tablePath)
+      val bootstrapIndex = BootstrapIndex.getBootstrapIndex(metaClient)
+      log.info("Bootstrap Index Available => " + bootstrapIndex.isIndexAvailable)
+
+      if (bootstrapIndex.isIndexAvailable) {
+        new HudiBootstrapRelation(sqlContext, schema, path.get, globPaths, metaClient, optParams)
       } else {
         // this is just effectively RO view only, where `path` can contain a mix of
         // non-hoodie/hoodie path files. set the path filter up
@@ -134,6 +145,13 @@ class DefaultSource extends RelationProvider
       parameters,
       partitionColumns,
       outputMode)
+  }
+
+  private def checkAndGlobPathIfNecessary(path: String, fs: FileSystem): Seq[Path] = {
+    val qualified = new Path(path).makeQualified(fs.getUri, fs.getWorkingDirectory)
+    val globPath = SparkHadoopUtil.get.globPathIfNecessary(fs, qualified)
+    log.info("Globbed paths => " + globPath)
+    globPath
   }
 
   override def shortName(): String = "hudi"

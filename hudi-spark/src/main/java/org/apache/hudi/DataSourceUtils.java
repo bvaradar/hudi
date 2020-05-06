@@ -18,13 +18,18 @@
 
 package org.apache.hudi;
 
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hudi.client.HoodieReadClient;
 import org.apache.hudi.client.HoodieWriteClient;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.model.HoodiePartitionMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
 import org.apache.hudi.common.util.StringUtils;
@@ -34,6 +39,7 @@ import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.exception.HoodieNotSupportedException;
 import org.apache.hudi.exception.TableNotFoundException;
+import org.apache.hudi.hadoop.HoodieHiveUtil;
 import org.apache.hudi.hive.HiveSyncConfig;
 import org.apache.hudi.hive.SlashEncodedDayPartitionValueExtractor;
 import org.apache.hudi.index.HoodieIndex;
@@ -44,6 +50,8 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 
@@ -59,6 +67,8 @@ import java.util.stream.Collectors;
  * Utilities used throughout the data source.
  */
 public class DataSourceUtils {
+
+  private static final Logger LOG = LogManager.getLogger(DataSourceUtils.class);
 
   /**
    * Obtain value of the provided field as string, denoted by dot notation. e.g: a.b.c
@@ -285,5 +295,59 @@ public class DataSourceUtils {
         props.getString(DataSourceWriteOptions.HIVE_PARTITION_EXTRACTOR_CLASS_OPT_KEY(),
             SlashEncodedDayPartitionValueExtractor.class.getName());
     return hiveSyncConfig;
+  }
+
+  public static String getTablePath(FileSystem fs, Path[] paths) throws IOException {
+    LOG.info("Getting table path..");
+    for (Path path: paths) {
+      FileStatus fileStatus = fs.getFileStatus(path);
+      Option<Path> tablePath;
+
+      if (fileStatus.isFile()) {
+        tablePath = getTablePathFromFile(fs, fileStatus);
+      } else {
+        tablePath = getTablePathFromDir(fs, fileStatus);
+      }
+
+      if (tablePath.isPresent()) {
+        return tablePath.get().toString();
+      }
+    }
+
+    throw new TableNotFoundException("Cannot find Hudi table for the path provided");
+  }
+
+  private static Option<Path> getTablePathFromFile(FileSystem fs, FileStatus fileStatus) throws IOException {
+    LOG.info("Getting table path from file path : " + fileStatus.getPath());
+    Path filePath = fileStatus.getPath();
+    String filePathStr = filePath.toString();
+
+    if (filePathStr.contains("/" + HoodieTableMetaClient.METAFOLDER_NAME + "/")) {
+      // Handle file inside metadata folder
+      Path tablePath = new Path(filePathStr);
+      while (!tablePath.toString().endsWith(HoodieTableMetaClient.METAFOLDER_NAME)) {
+        tablePath = tablePath.getParent();
+      }
+      return Option.of(tablePath.getParent());
+    } else if (HoodiePartitionMetadata.hasPartitionMetadata(fs, filePath.getParent())) {
+      // Handle partition path
+      Path partitionPath = filePath.getParent();
+      HoodiePartitionMetadata metadata = new HoodiePartitionMetadata(fs, partitionPath);
+      metadata.readFromFS();
+      return Option.of(HoodieHiveUtil.getNthParent(partitionPath, metadata.getPartitionDepth()));
+    }
+
+    return Option.empty();
+  }
+
+  private static Option<Path> getTablePathFromDir(FileSystem fs, FileStatus fileStatus) throws IOException {
+    System.out.println("Getting table path from directory path : " + fileStatus.getPath().toString());
+    Path tablePath = new Path(fileStatus.getPath().toString());
+
+    while (tablePath != null && !fs.exists(new Path(tablePath, HoodieTableMetaClient.METAFOLDER_NAME))) {
+      tablePath = tablePath.getParent();
+    }
+
+    return tablePath == null ? Option.empty() : Option.of(tablePath);
   }
 }

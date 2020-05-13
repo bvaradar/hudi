@@ -115,6 +115,11 @@ public class TestBootstrap extends TestHoodieClientBase {
     srcPath = tmpFolder.toAbsolutePath().toString() + "/data";
 
     // initialize parquet input format
+    reloadInputFormats();
+  }
+
+  private void reloadInputFormats() {
+    // initialize parquet input format
     roInputFormat = new HoodieParquetInputFormat();
     roJobConf = new JobConf(jsc.hadoopConfiguration());
     roInputFormat.setConf(roJobConf);
@@ -165,7 +170,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withSchema(schema.toString())
         .withBootstrapModeSelector(MetadataOnlyBootstrapModeSelector.class.getName()).build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, true, 1, timestamp,
         timestamp, false);
 
@@ -183,7 +188,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -223,7 +228,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withBootstrapModeSelector(MetadataOnlyBootstrapModeSelector.class.getName())
         .build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, true, 1, timestamp,
         timestamp, false);
 
@@ -241,7 +246,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -282,7 +287,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withBootstrapModeSelector(MetadataOnlyBootstrapModeSelector.class.getName()).build();
     System.out.println("Config Props :" + config.getProps().getProperty(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY()));
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, true, 1,
         timestamp, timestamp, false);
     // Rollback Bootstrap
@@ -299,7 +304,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -341,7 +346,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withFullBootstrapInputProvider(FullTestBootstrapInputProvider.class.getName())
         .withBootstrapModeSelector(FullBootstrapModeSelector.class.getName()).build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.FULL_BOOTSTRAP_INSTANT_TS, false, 1, timestamp,
         timestamp, false);
     // Rollback Bootstrap
@@ -358,7 +363,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -395,7 +400,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withFullBootstrapInputProvider(FullTestBootstrapInputProvider.class.getName())
         .withBootstrapModeSelector(FullBootstrapModeSelector.class.getName()).build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.FULL_BOOTSTRAP_INSTANT_TS, false, 1, timestamp,
         timestamp, false);
     // Rollback Bootstrap
@@ -412,7 +417,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -454,7 +459,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withFullBootstrapInputProvider(FullTestBootstrapInputProvider.class.getName())
         .withBootstrapModeSelector(TestRandomBootstapModeSelector.class.getName()).build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.FULL_BOOTSTRAP_INSTANT_TS, false, 2, 2,
         timestamp, timestamp, false,
         Arrays.asList(HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, HoodieTimeline.FULL_BOOTSTRAP_INSTANT_TS));
@@ -472,7 +477,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -509,7 +514,7 @@ public class TestBootstrap extends TestHoodieClientBase {
         .withFullBootstrapInputProvider(FullTestBootstrapInputProvider.class.getName())
         .withBootstrapModeSelector(TestRandomBootstapModeSelector.class.getName()).build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
     checkBootstrapResults(totalRecords, schema, HoodieTimeline.FULL_BOOTSTRAP_INSTANT_TS, false, 2, 2,
         timestamp, timestamp, false,
         Arrays.asList(HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS, HoodieTimeline.FULL_BOOTSTRAP_INSTANT_TS));
@@ -527,7 +532,7 @@ public class TestBootstrap extends TestHoodieClientBase {
 
     // Run bootstrap again
     client = new HoodieWriteClient(jsc, config);
-    client.bootstrap();
+    client.bootstrap(Option.empty());
 
     metaClient.reloadActiveTimeline();
     index = BootstrapIndex.getBootstrapIndex(metaClient);
@@ -593,6 +598,7 @@ public class TestBootstrap extends TestHoodieClientBase {
     }
 
     // RO Input Format Read
+    reloadInputFormats();
     List<GenericRecord> records = HoodieMergeOnReadTestUtils.getRecordsUsingInputFormat(
         FSUtils.getAllPartitionPaths(metaClient.getFs(), basePath, false).stream()
             .map(f -> basePath + "/" + f).collect(Collectors.toList()),
@@ -609,6 +615,7 @@ public class TestBootstrap extends TestHoodieClientBase {
     assertEquals(totalRecords, seenKeys.size());
 
     //RT Input Format Read
+    reloadInputFormats();
     seenKeys = new HashSet<>();
     records = HoodieMergeOnReadTestUtils.getRecordsUsingInputFormat(
         FSUtils.getAllPartitionPaths(metaClient.getFs(), basePath, false).stream()
@@ -752,10 +759,8 @@ public class TestBootstrap extends TestHoodieClientBase {
       partitions.stream().forEach(p -> {
         final BootstrapMode mode;
         if (currIdx == 0) {
-          System.out.println("METADATA bootstrap selected");
           mode = BootstrapMode.METADATA_ONLY_BOOTSTRAP;
         } else {
-          System.out.println("FULL bootstrap selected");
           mode = BootstrapMode.FULL_BOOTSTRAP;
         }
         currIdx = (currIdx + 1) % 2;

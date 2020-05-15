@@ -470,21 +470,25 @@ public class HoodieDeltaStreamer implements Serializable {
      */
     protected Boolean onInitializingWriteClient(HoodieWriteClient writeClient) {
       if (cfg.isAsyncCompactionEnabled()) {
-        asyncCompactService = new AsyncCompactService(jssc, writeClient);
-        // Enqueue existing pending compactions first
-        HoodieTableMetaClient meta =
-            new HoodieTableMetaClient(new Configuration(jssc.hadoopConfiguration()), cfg.targetBasePath, true);
-        List<HoodieInstant> pending = CompactionUtils.getPendingCompactionInstantTimes(meta);
-        pending.forEach(hoodieInstant -> asyncCompactService.enqueuePendingCompaction(hoodieInstant));
-        asyncCompactService.start((error) -> {
-          // Shutdown DeltaSync
-          shutdown(false);
-          return true;
-        });
-        try {
-          asyncCompactService.waitTillPendingCompactionsReducesTo(cfg.maxPendingCompactions);
-        } catch (InterruptedException ie) {
-          throw new HoodieException(ie);
+        if (null != asyncCompactService) {
+          asyncCompactService.updateWriteClient(writeClient);
+        } else {
+          asyncCompactService = new AsyncCompactService(jssc, writeClient);
+          // Enqueue existing pending compactions first
+          HoodieTableMetaClient meta =
+              new HoodieTableMetaClient(new Configuration(jssc.hadoopConfiguration()), cfg.targetBasePath, true);
+          List<HoodieInstant> pending = CompactionUtils.getPendingCompactionInstantTimes(meta);
+          pending.forEach(hoodieInstant -> asyncCompactService.enqueuePendingCompaction(hoodieInstant));
+          asyncCompactService.start((error) -> {
+            // Shutdown DeltaSync
+            shutdown(false);
+            return true;
+          });
+          try {
+            asyncCompactService.waitTillPendingCompactionsReducesTo(cfg.maxPendingCompactions);
+          } catch (InterruptedException ie) {
+            throw new HoodieException(ie);
+          }
         }
       }
       return true;
@@ -537,6 +541,10 @@ public class HoodieDeltaStreamer implements Serializable {
       this.jssc = jssc;
       this.compactor = new Compactor(client, jssc);
       this.maxConcurrentCompaction = 1;
+    }
+
+    public void updateWriteClient(HoodieWriteClient writeClient) {
+      compactor.updateWriteClient(writeClient);
     }
 
     /**

@@ -22,6 +22,8 @@ import org.apache.hudi.AvroConversionUtils;
 import org.apache.hudi.DataSourceUtils;
 import org.apache.hudi.client.HoodieWriteClient;
 import org.apache.hudi.client.WriteStatus;
+import org.apache.hudi.client.embedded.EmbeddedTimelineServerHelper;
+import org.apache.hudi.client.embedded.EmbeddedTimelineService;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieRecord;
@@ -45,6 +47,7 @@ import org.apache.hudi.utilities.deltastreamer.HoodieDeltaStreamer.Operation;
 import org.apache.hudi.utilities.exception.HoodieDeltaStreamerException;
 import org.apache.hudi.utilities.schema.RowBasedSchemaProvider;
 import org.apache.hudi.utilities.schema.SchemaProvider;
+import org.apache.hudi.utilities.schema.SchemaSet;
 import org.apache.hudi.utilities.sources.InputBatch;
 import org.apache.hudi.utilities.transform.Transformer;
 
@@ -148,6 +151,17 @@ public class DeltaSync implements Serializable {
   private transient Option<HoodieTimeline> commitTimelineOpt;
 
   /**
+   * Tracks whether new schema is being seen and creates client accordingly.
+   */
+  private final SchemaSet processedSchema;
+
+  /**
+   * DeltaSync will explicitly manage embedded timeline server so that they can be reused across Write Client
+   * instantiations.
+   */
+  private Option<EmbeddedTimelineService> embeddedTimelineService = Option.empty();
+
+  /**
    * Write Client.
    */
   private transient HoodieWriteClient writeClient;
@@ -162,7 +176,7 @@ public class DeltaSync implements Serializable {
     this.fs = fs;
     this.onInitializingHoodieWriteClient = onInitializingHoodieWriteClient;
     this.props = props;
-
+    this.processedSchema = new SchemaSet();
     refreshTimeline();
     this.transformer = UtilHelpers.createTransformer(cfg.transformerClassNames);
     this.keyGenerator = DataSourceUtils.createKeyGenerator(props);
@@ -228,6 +242,18 @@ public class DeltaSync implements Serializable {
         this.schemaProvider = srcRecordsWithCkpt.getKey();
         // Setup HoodieWriteClient and compaction now that we decided on schema
         setupWriteClient();
+      } else {
+        Schema newSourceSchema = srcRecordsWithCkpt.getKey().getSourceSchema();
+        Schema newTargetSchema = srcRecordsWithCkpt.getKey().getTargetSchema();
+        if (!(processedSchema.isSchemaPresent(newSourceSchema))
+            || !(processedSchema.isSchemaPresent(newTargetSchema))) {
+          LOG.info("Seeing new schema. Source :" + newSourceSchema.toString(true)
+              + ", Target :" + newTargetSchema.toString(true));
+          // We need to recreate write client with new schema and register them.
+          setupWriteClient();
+          processedSchema.addSchema(newSourceSchema);
+          processedSchema.addSchema(newTargetSchema);
+        }
       }
 
       scheduledCompaction = writeToSink(srcRecordsWithCkpt.getRight().getRight(),
@@ -463,12 +489,19 @@ public class DeltaSync implements Serializable {
    * SchemaProvider creation is a precursor to HoodieWriteClient and AsyncCompactor creation. This method takes care of
    * this constraint.
    */
-  public void setupWriteClient() {
+  public void setupWriteClient() throws IOException {
     LOG.info("Setting up Hoodie Write Client");
     if ((null != schemaProvider) && (null == writeClient)) {
       registerAvroSchemas(schemaProvider);
       HoodieWriteConfig hoodieCfg = getHoodieClientConfig(schemaProvider);
-      writeClient = new HoodieWriteClient<>(jssc, hoodieCfg, true);
+      if (!embeddedTimelineService.isPresent()) {
+        embeddedTimelineService = EmbeddedTimelineServerHelper.createEmbeddedTimelineService(jssc, hoodieCfg);
+      }
+      if (null != writeClient) {
+        writeClient.close();
+      }
+      writeClient = new HoodieWriteClient<>(jssc, hoodieCfg, true,
+          HoodieIndex.createIndex(hoodieCfg, jssc), embeddedTimelineService);
       onInitializingHoodieWriteClient.apply(writeClient);
     }
   }
@@ -528,6 +561,11 @@ public class DeltaSync implements Serializable {
     if (null != writeClient) {
       writeClient.close();
       writeClient = null;
+    }
+
+    LOG.info("Shutting down embedded timeline server");
+    if (embeddedTimelineService.isPresent()) {
+      embeddedTimelineService.get().stop();
     }
   }
 }

@@ -18,6 +18,7 @@
 
 package org.apache.hudi.client;
 
+import org.apache.hudi.client.embedded.EmbeddedTimelineServerHelper;
 import org.apache.hudi.client.embedded.EmbeddedTimelineService;
 import org.apache.hudi.client.utils.ClientUtils;
 import org.apache.hudi.common.fs.FSUtils;
@@ -96,12 +97,8 @@ public abstract class AbstractHoodieClient implements Serializable, AutoCloseabl
       if (!timelineServer.isPresent()) {
         // Run Embedded Timeline Server
         LOG.info("Starting Timeline service !!");
-        timelineServer = Option.of(new EmbeddedTimelineService(jsc.hadoopConfiguration(), jsc.getConf(),
-            config.getClientSpecifiedViewStorageConfig()));
         try {
-          timelineServer.get().startServer();
-          // Allow executor to find this newly instantiated timeline service
-          config.setViewStorageConfig(timelineServer.get().getRemoteFileSystemViewConfig());
+          timelineServer = EmbeddedTimelineServerHelper.createEmbeddedTimelineService(jsc, config);
         } catch (IOException e) {
           LOG.warn("Unable to start timeline service. Proceeding as if embedded server is disabled", e);
           stopEmbeddedServerView(false);
@@ -120,5 +117,9 @@ public abstract class AbstractHoodieClient implements Serializable, AutoCloseabl
 
   protected HoodieTableMetaClient createMetaClient(boolean loadActiveTimelineOnLoad) {
     return ClientUtils.createMetaClient(jsc, config, loadActiveTimelineOnLoad);
+  }
+
+  public Option<EmbeddedTimelineService> getTimelineServer() {
+    return timelineServer;
   }
 }

@@ -50,7 +50,8 @@ public class Compactor implements Serializable {
 
   public void compact(HoodieInstant instant) throws IOException {
     LOG.info("Compactor executing compaction " + instant);
-    JavaRDD<WriteStatus> res = compactionClient.compact(instant.getTimestamp());
+    HoodieWriteClient writeClient = compactionClient;
+    JavaRDD<WriteStatus> res = writeClient.compact(instant.getTimestamp());
     long numWriteErrors = res.collect().stream().filter(WriteStatus::hasErrors).count();
     if (numWriteErrors != 0) {
       // We treat even a single error in compaction as fatal
@@ -59,6 +60,10 @@ public class Compactor implements Serializable {
           "Compaction for instant (" + instant + ") failed with write errors. Errors :" + numWriteErrors);
     }
     // Commit compaction
-    compactionClient.commitCompaction(instant.getTimestamp(), res, Option.empty());
+    writeClient.commitCompaction(instant.getTimestamp(), res, Option.empty());
+  }
+
+  public void updateWriteClient(HoodieWriteClient writeClient) {
+    this.compactionClient = writeClient;
   }
 }

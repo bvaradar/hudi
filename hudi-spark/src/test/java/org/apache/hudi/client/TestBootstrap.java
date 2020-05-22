@@ -770,7 +770,8 @@ public class TestBootstrap extends TestHoodieClientBase {
   }
 
   HoodieWriteConfig.Builder getConfigBuilder(String schemaStr) {
-    HoodieWriteConfig.Builder builder = getConfigBuilder(schemaStr, IndexType.BLOOM);
+    HoodieWriteConfig.Builder builder = getConfigBuilder(schemaStr, IndexType.BLOOM)
+        .withExternalSchemaTrasformation(true);
     TypedProperties properties = new TypedProperties();
     properties.setProperty(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY(), "_row_key");
     properties.setProperty(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY(), "datestr");

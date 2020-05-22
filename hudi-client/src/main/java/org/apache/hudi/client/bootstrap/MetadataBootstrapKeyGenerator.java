@@ -60,7 +60,16 @@ public class MetadataBootstrapKeyGenerator implements Serializable {
     return keyGenerator.getTopLevelRecordKeyFields();
   }
 
+  /**
+   * Allow users to change partitioning style while doing metadata bootstrap
+   * @param originalPath Original Partition Path
+   * @return
+   */
   public String getTranslatedPath(String originalPath) {
     return translator.getBootstrapTranslatedPath(originalPath);
   }
+
+  /**
+   * Return Translated
+   */
 }

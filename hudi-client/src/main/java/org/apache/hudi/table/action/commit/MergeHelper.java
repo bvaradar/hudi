@@ -18,6 +18,13 @@
 
 package org.apache.hudi.table.action.commit;
 
+import java.io.ByteArrayOutputStream;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.DecoderFactory;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.client.utils.MergingParquetIterator;
@@ -51,12 +58,24 @@ public class MergeHelper {
 
   public static <T extends HoodieRecordPayload<T>> void runMerge(HoodieTable<T> table,
       HoodieMergeHandle<T> upsertHandle) throws IOException {
-    MessageType usedParquetSchema =  ParquetUtils.readSchema(table.getHadoopConf(), upsertHandle.getOldFilePath());
-    Schema lastWrittenSchema = new AvroSchemaConverter().convert(usedParquetSchema);
+    final boolean externalchemaTransformation = table.getConfig().shouldUseExternalSchemaTransformation();
     Configuration configForHudiFile = new Configuration(table.getHadoopConf());
-    AvroReadSupport.setAvroReadSchema(configForHudiFile, lastWrittenSchema);
-
     HoodieBaseFile baseFile = upsertHandle.getPrevBaseFile();
+
+    final GenericDatumWriter<GenericRecord> gWriter;
+    final GenericDatumReader<GenericRecord> gReader;
+    if (externalchemaTransformation || baseFile.getExternalBaseFile().isPresent()) {
+      MessageType usedParquetSchema = ParquetUtils.readSchema(table.getHadoopConf(), upsertHandle.getOldFilePath());
+      Schema lastWrittenSchema = new AvroSchemaConverter().convert(usedParquetSchema);
+      AvroReadSupport.setAvroReadSchema(configForHudiFile, lastWrittenSchema);
+      gWriter = new GenericDatumWriter<>(lastWrittenSchema);
+      gReader = new GenericDatumReader<>(lastWrittenSchema, upsertHandle.getWriterSchema());
+    } else {
+      gReader = null;
+      gWriter = null;
+      AvroReadSupport.setAvroReadSchema(configForHudiFile, upsertHandle.getWriterSchema());
+    }
+
     BoundedInMemoryExecutor<GenericRecord, GenericRecord, Void> wrapper = null;
     ParquetReader<GenericRecord> reader =
         AvroParquetReader.<GenericRecord>builder(upsertHandle.getOldFilePath()).withConf(configForHudiFile).build();
@@ -66,9 +85,13 @@ public class MergeHelper {
       if (baseFile.getExternalBaseFile().isPresent()) {
         Path externalFilePath = new Path(baseFile.getExternalBaseFile().get().getPath());
         Configuration configForExternalFile = new Configuration(table.getHadoopConf());
-        MessageType usedExtParquetSchema =  ParquetUtils.readSchema(configForExternalFile, externalFilePath);
-        Schema lastExtWrittenSchema = new AvroSchemaConverter().convert(usedExtParquetSchema);
-        AvroReadSupport.setAvroReadSchema(configForExternalFile, lastExtWrittenSchema);
+        if (externalchemaTransformation) {
+          MessageType usedExtParquetSchema =  ParquetUtils.readSchema(configForExternalFile, externalFilePath);
+          Schema lastExtWrittenSchema = new AvroSchemaConverter().convert(usedExtParquetSchema);
+          AvroReadSupport.setAvroReadSchema(configForExternalFile, lastExtWrittenSchema);
+        } else {
+          AvroReadSupport.setAvroReadSchema(configForExternalFile, upsertHandle.getOriginalSchema());
+        }
         externalFileReader = AvroParquetReader.<GenericRecord>builder(externalFilePath).withConf(configForExternalFile).build();
         readerIterator = new MergingParquetIterator<>(new ParquetReaderIterator<>(reader),
             new ParquetReaderIterator<>(externalFileReader), (inputRecordPair) -> HoodieAvroUtils.stitchRecords(
@@ -76,8 +99,36 @@ public class MergeHelper {
       } else {
         readerIterator = new ParquetReaderIterator(reader);
       }
+
+      ThreadLocal<BinaryEncoder> encoderCache = new ThreadLocal<>();
+      ThreadLocal<BinaryDecoder> decoderCache = new ThreadLocal<>();
       wrapper = new SparkBoundedInMemoryExecutor(table.getConfig(), readerIterator,
-          new UpdateHandler(upsertHandle), x -> x);
+          new UpdateHandler(upsertHandle), record -> {
+        if (!externalchemaTransformation) {
+          return record;
+        }
+        ByteArrayOutputStream inStream = null;
+        try {
+          GenericRecord gRec = (GenericRecord) record;
+          inStream = new ByteArrayOutputStream();
+          BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(inStream, encoderCache.get());
+          encoderCache.set(encoder);
+          gWriter.write(gRec, encoder);
+          encoder.flush();
+          BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(inStream.toByteArray(), decoderCache.get());
+          decoderCache.set(decoder);
+          GenericRecord transformedRec = gReader.read(null, decoder);
+          return transformedRec;
+        } catch (IOException e) {
+          throw new HoodieException(e);
+        } finally {
+          try {
+            inStream.close();
+          } catch (IOException ioe) {
+            throw new HoodieException(ioe.getMessage(), ioe);
+          }
+        }
+      });
       wrapper.execute();
     } catch (Exception e) {
       throw new HoodieException(e);

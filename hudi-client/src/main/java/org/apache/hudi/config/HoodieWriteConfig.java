@@ -101,6 +101,9 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
   private static final String MAX_CONSISTENCY_CHECKS_PROP = "hoodie.consistency.check.max_checks";
   private static int DEFAULT_MAX_CONSISTENCY_CHECKS = 7;
 
+  public static final String EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION = AVRO_SCHEMA + ".externalTransformation";
+  public static final String DEFAULT_EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION = "false";
+
   private ConsistencyGuardConfig consistencyGuardConfig;
 
   public static final String SOURCE_BASE_PATH_PROP = "hoodie.bootstrap.source.base.path";
@@ -162,6 +165,10 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
 
   public Boolean shouldAssumeDatePartitioning() {
     return Boolean.parseBoolean(props.getProperty(HOODIE_ASSUME_DATE_PARTITIONING_PROP));
+  }
+
+  public boolean shouldUseExternalSchemaTransformation() {
+    return Boolean.parseBoolean(props.getProperty(EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION));
   }
 
   public Integer getTimelineLayoutVersion() {
@@ -745,6 +752,11 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
       return this;
     }
 
+    public Builder withExternalSchemaTrasformation(boolean enabled) {
+      props.setProperty(EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION, String.valueOf(enabled));
+      return this;
+    }
+
     public Builder withBootstrapSourceBasePath(String basePath) {
       props.setProperty(SOURCE_BASE_PATH_PROP, basePath);
       return this;
@@ -834,6 +846,8 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
           BOOTSTRAP_PARTITION_PATH_TRANSLATOR_CLASS, DEFAULT_BOOTSTRAP_PARTITION_PATH_TRANSLATOR_CLASS);
       setDefaultOnCondition(props, !props.containsKey(BOOTSTRAP_MODE_SELECTOR), BOOTSTRAP_MODE_SELECTOR,
           MetadataOnlyBootstrapModeSelector.class.getCanonicalName());
+      setDefaultOnCondition(props, !props.containsKey(EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION),
+          EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION, DEFAULT_EXTERNAL_RECORD_AND_SCHEMA_TRANSFORMATION);
       setDefaultOnCondition(props, !props.containsKey(TIMELINE_LAYOUT_VERSION), TIMELINE_LAYOUT_VERSION,
           String.valueOf(TimelineLayoutVersion.CURR_VERSION));
       String layoutVersion = props.getProperty(TIMELINE_LAYOUT_VERSION);

@@ -22,11 +22,9 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.apache.hadoop.fs.Path;
 import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.util.Option;
 import org.apache.spark.sql.Row;
-import scala.Tuple3;
 
 public class EncodableWriteStatus implements Serializable {
 
@@ -34,10 +32,12 @@ public class EncodableWriteStatus implements Serializable {
   private String recordKeyProp;
   private String fileId;
   private String partitionPath;
-  private List<Row> successRows = new ArrayList<>();
-  private List<Tuple3<Row, String, Throwable>> failedRows = new ArrayList<>();
-  public Throwable globalError;
-  public Path path;
+  private List<String> successRecordKeys = new ArrayList<>();
+  //private List<Tuple3<Row, String, Throwable>> failedRows = new ArrayList<>();
+  private List<String> failedRecordKeys = new ArrayList<>();
+
+  //public Throwable globalError;
+  public String path;
   private long endTime;
   private long recordsWritten;
   private long insertRecordsWritten;
@@ -51,22 +51,25 @@ public class EncodableWriteStatus implements Serializable {
   }
 
   public void markSuccess(Row row) {
-    this.successRows.add(row);
+    this.successRecordKeys.add(row.getAs("_hoodie_record_key").toString());
   }
 
   public void markFailure(Row row, Throwable t,
       Option<Map<String, String>> optionalRecordMetadata) {
     // Guaranteed to have at-least one error
-    failedRows.add(new Tuple3<>(row, row.getAs(recordKeyProp), t));
+    //failedRows.add(new Tuple3<>(row, row.getAs(recordKeyProp), t));
+    failedRecordKeys.add(row.getAs("_hoodie_record_key"));
+
   }
 
   public void markFailure(Row row, String recordKey, Throwable t) {
     // Guaranteed to have at-least one error
-    failedRows.add(new Tuple3<>(row, recordKey, t));
+    //failedRows.add(new Tuple3<>(row, recordKey, t));
+    failedRecordKeys.add(recordKey);
   }
 
   public boolean hasErrors() {
-    return failedRows.size() != 0;
+    return failedRecordKeys.size() != 0;
   }
 
   public HoodieWriteStat getStat() {
@@ -93,42 +96,45 @@ public class EncodableWriteStatus implements Serializable {
     this.partitionPath = partitionPath;
   }
 
-  public List<Row> getSuccessRows() {
-    return successRows;
+  public List<String> getSuccessRecordKeys() {
+    return successRecordKeys;
   }
 
   public long getFailedRowsSize() {
-    return failedRows.size();
+    return failedRecordKeys.size();
   }
 
+  /**
   public List<Tuple3<Row, String, Throwable>> getFailedRows() {
     return failedRows;
   }
+   **/
 
-  /*
-  public void setFailedRows(List<Tuple3<Row, String, Throwable>> failedRows) {
-    this.failedRows = failedRows;
-  }*/
+  public List<String> getFailedRecordKeys() {
+    return failedRecordKeys;
+  }
+
+  public void setFailedRecordKeys(List<String> failedRecordKeys) {
+    this.failedRecordKeys = failedRecordKeys;
+  }
 
   /*
   public Throwable getGlobalError() {
     return globalError;
-  }*/
+  }
 
-  /*
   public void setGlobalError(Throwable globalError) {
     this.globalError = globalError;
-  }*/
+  }
+  */
 
-  /*
-  public Path getFilePath() {
+  public String getFilePath() {
     return path;
-  }*/
+  }
 
-  /*
-  public void setFilePath(Path path) {
+  public void setFilePath(String path) {
     this.path = path;
-  }*/
+  }
 
   public long getEndTime() {
     return endTime;
@@ -154,11 +160,24 @@ public class EncodableWriteStatus implements Serializable {
     this.insertRecordsWritten = insertRecordsWritten;
   }
 
+  public void setSuccessRecordKeys(List<String> successRecordKeys) {
+    this.successRecordKeys = successRecordKeys;
+  }
+
+  public String getPath() {
+    return path;
+  }
+
+  public void setPath(String path) {
+    this.path = path;
+  }
+
   @Override
   public String toString() {
     return "PartitionPath " + partitionPath + ", FileID " + fileId + ", Success records "
-        + successRows.size()
-        + ", errored Rows " + failedRows.size() + ", global error " + (globalError != null)
+        + successRecordKeys.size()
+        + ", errored Rows " + failedRecordKeys.size()
+        //+ ", global error " + (globalError != null)
         + ", end time " + endTime;
   }
 }

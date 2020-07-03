@@ -240,6 +240,26 @@ public class DataSourceUtils {
     return new HoodieDatasetWriteClient(jssc, writeConfig, true);
   }
 
+  public static HoodieWriteConfig createHoodieConfig(String schemaStr, String basePath,
+      String tblName, Map<String, String> parameters) {
+
+    // inline compaction is on by default for MOR
+    boolean inlineCompact = parameters.get(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY())
+        .equals(DataSourceWriteOptions.MOR_TABLE_TYPE_OPT_VAL());
+
+    // insert/bulk-insert combining to be true, if filtering for duplicates
+    boolean combineInserts = Boolean.parseBoolean(parameters.get(DataSourceWriteOptions.INSERT_DROP_DUPS_OPT_KEY()));
+
+    return HoodieWriteConfig.newBuilder().withPath(basePath).withAutoCommit(false)
+        .combineInput(combineInserts, true).withSchema(schemaStr).forTable(tblName)
+        .withIndexConfig(HoodieIndexConfig.newBuilder().withIndexType(HoodieIndex.IndexType.BLOOM).build())
+        .withCompactionConfig(HoodieCompactionConfig.newBuilder()
+            .withPayloadClass(parameters.get(DataSourceWriteOptions.PAYLOAD_CLASS_OPT_KEY()))
+            .withInlineCompaction(inlineCompact).build())
+        // override above with Hoodie configs specified as options.
+        .withProps(parameters).build();
+  }
+
   public static JavaRDD<WriteStatus> doWriteOperation(HoodieWriteClient client, JavaRDD<HoodieRecord> hoodieRecords,
                                                       String instantTime, String operation) throws HoodieException {
     if (operation.equals(DataSourceWriteOptions.BULK_INSERT_OPERATION_OPT_VAL())) {

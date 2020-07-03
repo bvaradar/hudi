@@ -72,10 +72,10 @@ public class HoodieWriteBenchmark {
    * Benchmarks bulk insert in Hudi.
    */
   @Fork(value = 1)
-  @Benchmark
+  //@Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @Warmup(iterations = 1)
-  @Measurement(iterations = 5)
+  @Measurement(iterations = 3)
   @OutputTimeUnit(TimeUnit.SECONDS)
   public void benchmarkOriginalBulkInsert(WriteBenchmarkExecutionPlan plan) throws Exception {
     try {
@@ -98,19 +98,21 @@ public class HoodieWriteBenchmark {
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @Warmup(iterations = 1)
-  @Measurement(iterations = 5)
+  @Measurement(iterations = 1)
   @OutputTimeUnit(TimeUnit.SECONDS)
-  public void benchmarkBulkInsertDataset(WriteBenchmarkExecutionPlan plan) throws Exception {
+  public void benchmarkWBulkInsertDataset(WriteBenchmarkExecutionPlan plan) throws Exception {
     try {
       String randomPath = UUID.randomUUID().toString();
       org.apache.hadoop.fs.Path tablePath = new org.apache.hadoop.fs.Path(plan.basePath + "/" + PATH_PREFIX + "/" + randomPath);
       plan.fs.mkdirs(tablePath);
       doWrites(plan.inputDF, tablePath, plan.parallelism, DataSourceWriteOptions.BULK_INSERT_DATASET_OPERATION_OPT_VAL());
+      //Thread.sleep(86400000);
     } catch (Throwable e) {
       e.printStackTrace();
       throw new Exception("Exception thrown while running benchmark", e);
     } finally {
-      FileUtils.deleteDirectory(new File(plan.basePath + "/" + PATH_PREFIX));
+      System.out.println("Written Path = " + plan.basePath + "/" + PATH_PREFIX);
+      //FileUtils.deleteDirectory(new File(plan.basePath + "/" + PATH_PREFIX));
     }
   }
 
@@ -145,7 +147,7 @@ public class HoodieWriteBenchmark {
   @Benchmark
   @BenchmarkMode(Mode.AverageTime)
   @Warmup(iterations = 1)
-  @Measurement(iterations = 5)
+  @Measurement(iterations = 1)
   @OutputTimeUnit(TimeUnit.SECONDS)
   public void benchmarkDirectParquetWrites(WriteBenchmarkExecutionPlan plan) throws Exception {
     try {
@@ -153,6 +155,7 @@ public class HoodieWriteBenchmark {
       org.apache.hadoop.fs.Path tablePath = new org.apache.hadoop.fs.Path(plan.basePath + "/" + PATH_PREFIX + "/" + randomPath);
       plan.fs.mkdirs(tablePath);
       doDirectParquetWrites(plan.inputDF, tablePath, plan.parallelism);
+      //Thread.sleep(86400000);
     } catch (Throwable e) {
       e.printStackTrace();
       throw new Exception("Exception thrown while running benchmark", e);

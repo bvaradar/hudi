@@ -56,6 +56,7 @@ public class HoodieRowParquetWriteSupport extends ParquetWriteSupport {
 
   @Override
   public WriteSupport.FinalizedWriteContext finalizeWrite() {
+    /*
     HashMap<String, String> extraMetaData = new HashMap<>();
     if (bloomFilter != null) {
       extraMetaData.put(HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY, bloomFilter.serializeToString());
@@ -68,9 +69,12 @@ public class HoodieRowParquetWriteSupport extends ParquetWriteSupport {
       }
     }
     return new WriteSupport.FinalizedWriteContext(extraMetaData);
+    */
+    return new WriteSupport.FinalizedWriteContext(new HashMap<>());
   }
 
   public void add(String recordKey) {
+    /**
     this.bloomFilter.add(recordKey);
     if (minRecordKey != null) {
       minRecordKey = minRecordKey.compareTo(recordKey) <= 0 ? minRecordKey : recordKey;
@@ -83,5 +87,6 @@ public class HoodieRowParquetWriteSupport extends ParquetWriteSupport {
     } else {
       maxRecordKey = recordKey;
     }
+     **/
   }
 }

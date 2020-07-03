@@ -58,7 +58,9 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 
 /**
@@ -219,23 +221,24 @@ public class HoodieDatasetWriteClient<T extends HoodieRecordPayload> implements 
     return commitDataset(instantTime, encWriteStatuses, Option.empty());
   }
 
-  public boolean commitDataset(String instantTime, Dataset<EncodableWriteStatus> encWriteStatuses,
+  private boolean commitDataset(String instantTime, Dataset<EncodableWriteStatus> encWriteStatuses,
       Option<Map<String, String>> extraMetadata) {
-    HoodieTableMetaClient metaClient = createMetaClient(false);
-    return commitDataset(instantTime, encWriteStatuses, extraMetadata,
-        metaClient.getCommitActionType());
+    List<HoodieWriteStat> stats = encWriteStatuses.map(
+        (MapFunction<EncodableWriteStatus, HoodieWriteStat>) EncodableWriteStatus::getStat,
+        Encoders.bean(HoodieWriteStat.class)).collectAsList();
+    return commitDataset(instantTime, stats, extraMetadata);
   }
 
-  private boolean commitDataset(String instantTime, Dataset<EncodableWriteStatus> encWriteStatuses,
-      Option<Map<String, String>> extraMetadata, String actionType) {
+  public boolean commitDataset(String instantTime, List<HoodieWriteStat> stats,
+        Option<Map<String, String>> extraMetadata) {
+    HoodieTableMetaClient metaClient = createMetaClient(false);
+    String actionType = metaClient.getCommitActionType();
     LOG.info("Committing " + instantTime);
     // Create a Hoodie table which encapsulated the commits and files visible
     HoodieTable<T> table = HoodieTable.create(config, jsc);
 
     HoodieActiveTimeline activeTimeline = table.getActiveTimeline();
     HoodieCommitMetadata metadata = new HoodieCommitMetadata();
-    List<HoodieWriteStat> stats = encWriteStatuses.toJavaRDD().map(EncodableWriteStatus::getStat)
-        .collect();
 
     updateMetadataAndRollingStats(actionType, metadata, stats);
 

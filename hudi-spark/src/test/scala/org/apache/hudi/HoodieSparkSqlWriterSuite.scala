@@ -25,6 +25,7 @@ import org.scalatest.{FunSuite, Matchers}
 
 class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
 
+  /**
   test("Parameters With Write Defaults") {
     val originals = HoodieSparkSqlWriter.parametersWithWriteDefaults(Map.empty)
     val rhsKey = "hoodie.right.hand.side.key"
@@ -40,7 +41,7 @@ class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
       case (k, v) => matcher(k, v)
     }
   }
-
+  **/
   test("throw hoodie exception when invalid serializer") {
     val session = SparkSession.builder().appName("hoodie_test").master("local").getOrCreate()
     val sqlContext = session.sqlContext

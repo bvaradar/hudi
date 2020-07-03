@@ -119,7 +119,7 @@ public class HoodieParquetRowWriter implements Serializable {
           writeSupport.getHadoopConf());
     } catch (Throwable e) {
       LOG.error("Throwable thrown during instantiation of HoodieCreateHandleRows ", e);
-      encodableWriteStatus.globalError = e;
+      //encodableWriteStatus.globalError = e;
       throw e;
     }
   }
@@ -150,7 +150,7 @@ public class HoodieParquetRowWriter implements Serializable {
 
   public EncodableWriteStatus close() throws IOException {
     writer.close();
-    encodableWriteStatus.path = path;
+    encodableWriteStatus.path = path.toString();
     encodableWriteStatus.setRecordsWritten(recordsWritten);
     encodableWriteStatus.setInsertRecordsWritten(insertRecordsWritten);
     encodableWriteStatus.setEndTime(timer.endTimer());
@@ -190,14 +190,17 @@ public class HoodieParquetRowWriter implements Serializable {
   }
 
   public void setGlobalError(Throwable e) {
+    /**
     if (encodableWriteStatus.globalError == null) {
       encodableWriteStatus.globalError = e;
     } else {
+    if (true)
       LOG.warn(
           "Ignoring global error since its already set for " + partitionPath + ", fieId " + fileId
               + ". Existing " + encodableWriteStatus.globalError.getCause() + ".. New " + e
               .getCause());
     }
+     **/
   }
 
   private int getPartitionId() {

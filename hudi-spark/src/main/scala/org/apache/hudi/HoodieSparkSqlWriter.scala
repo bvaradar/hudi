@@ -24,11 +24,9 @@ import org.apache.avro.generic.GenericRecord
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hudi.DataSourceWriteOptions._
-import org.apache.hudi.HoodieSparkSqlWriter.checkEncWriteStatus
-import org.apache.hudi.client.{EncodableWriteStatus, HoodieDatasetWriteClient, HoodieWriteClient, WriteStatus}
+import org.apache.hudi.client.{HoodieWriteClient, WriteStatus}
 import org.apache.hudi.common.config.TypedProperties
 import org.apache.hudi.common.fs.FSUtils
-import org.apache.hudi.common.model.HoodieRecordPayload
 import org.apache.hudi.common.table.HoodieTableMetaClient
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline
 import org.apache.hudi.config.HoodieWriteConfig
@@ -41,6 +39,7 @@ import org.apache.spark.sql.{DataFrame, Dataset, SQLContext, SaveMode}
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
+import scala.collection.JavaConverters._
 
 private[hudi] object HoodieSparkSqlWriter {
 
@@ -107,9 +106,9 @@ private[hudi] object HoodieSparkSqlWriter {
       sparkContext.getConf.registerKryoClasses(
         Array(classOf[org.apache.avro.generic.GenericData],
           classOf[org.apache.avro.Schema]))
-      val schema = AvroConversionUtils.convertStructTypeToAvroSchema(df.schema, structName, nameSpace)
-      sparkContext.getConf.registerAvroSchemas(schema)
-      log.info(s"Registered avro schema : ${schema.toString(true)}")
+      //val schema = AvroConversionUtils.convertStructTypeToAvroSchema(df.schema, structName, nameSpace)
+      //sparkContext.getConf.registerAvroSchemas(schema)
+      //log.info(s"Registered avro schema : ${schema.toString(true)}")
 
       // Handle various save modes
       if (mode == SaveMode.ErrorIfExists && exists) {
@@ -131,6 +130,13 @@ private[hudi] object HoodieSparkSqlWriter {
           tblName.get, "archived", parameters(PAYLOAD_CLASS_OPT_KEY))
       }
 
+      val writeConfig = DataSourceUtils.createHoodieConfig(null, path.get, tblName.get,
+        mapAsJavaMap(parameters))
+
+      val hoodieDF = HoodieDatasetBulkInsertHelper.sortAndCreateHoodieDataset(sqlContext, writeConfig, df, instantTime)
+      hoodieDF.write.format("org.apache.hudi.v2").options(parameters).save()
+
+      /**
       // Create a HoodieWriteClient & issue the write.
       val client = DataSourceUtils.createHoodieDatasetClient(jsc, schema.toString, path.get, tblName.get,
         mapAsJavaMap(parameters)
@@ -140,7 +146,8 @@ private[hudi] object HoodieSparkSqlWriter {
 
       val writeStatuses = DataSourceUtils.doWriteOperationDataset(client, df, instantTime, operation)
       val writeSuccessful = checkEncWriteStatus(writeStatuses, parameters, client, instantTime, basePath, operation, jsc)
-      (writeSuccessful, common.util.Option.ofNullable(instantTime))
+      **/
+      (true, common.util.Option.ofNullable(instantTime))
     } else {
       val writeSuccessful: Boolean =
         if (!operation.equalsIgnoreCase(DELETE_OPERATION_OPT_VAL)) {
@@ -245,7 +252,11 @@ private[hudi] object HoodieSparkSqlWriter {
     (writeSuccessful, commitTime)
   }
 
-  /**
+  def javaParametersWithWriteDefaults(parameters: java.util.Map[String, String]): java.util.Map[String, String] = {
+    mapAsJavaMap(parametersWithWriteDefaults(parameters.asScala.toMap))
+  }
+
+    /**
     * Add default options for unspecified write options keys.
     *
     * @param parameters
@@ -353,60 +364,6 @@ private[hudi] object HoodieSparkSqlWriter {
             if (ws.getErrors.size() > 0) {
               ws.getErrors.foreach(kt =>
                 log.trace(s"Error for key: ${kt._1}", kt._2))
-            }
-          })
-      }
-      false
-    }
-  }
-
-  private def checkEncWriteStatus(writeStatuses: Dataset[EncodableWriteStatus],
-                                  parameters: Map[String, String],
-                                  client: HoodieDatasetWriteClient[_],
-                                  instantTime: String,
-                                  basePath: Path,
-                                  operation: String,
-                                  jsc: JavaSparkContext): Boolean = {
-    val errorCount = writeStatuses.rdd.filter(ws => ws.hasErrors).count()
-    if (errorCount == 0) {
-      log.info("No errors. Proceeding to commit the write.")
-      val metaMap = parameters.filter(kv =>
-        kv._1.startsWith(parameters(COMMIT_METADATA_KEYPREFIX_OPT_KEY)))
-      val commitSuccess = if (metaMap.isEmpty) {
-        client.commitDataset(instantTime, writeStatuses)
-      } else {
-        client.commitDataset(instantTime, writeStatuses,
-          common.util.Option.of(new util.HashMap[String, String](mapAsJavaMap(metaMap))))
-      }
-
-      if (commitSuccess) {
-        log.info("Commit " + instantTime + " successful!")
-      }
-      else {
-        log.info("Commit " + instantTime + " failed!")
-      }
-
-      val hiveSyncEnabled = parameters.get(HIVE_SYNC_ENABLED_OPT_KEY).exists(r => r.toBoolean)
-      val syncHiveSucess = if (hiveSyncEnabled) {
-        log.info("Syncing to Hive Metastore (URL: " + parameters(HIVE_URL_OPT_KEY) + ")")
-        val fs = FSUtils.getFs(basePath.toString, jsc.hadoopConfiguration)
-        syncHive(basePath, fs, parameters)
-      } else {
-        true
-      }
-      client.close()
-      commitSuccess && syncHiveSucess
-    } else {
-      log.error(s"$operation failed with $errorCount errors :")
-      if (log.isTraceEnabled) {
-        log.trace("Printing out the top 100 errors")
-        writeStatuses.rdd.filter(ws => ws.hasErrors)
-          .take(100)
-          .foreach(ws => {
-            log.trace("Global error :", ws.globalError)
-            if (ws.getFailedRowsSize() > 0) {
-              ws.getFailedRows.foreach(kt =>
-                log.trace(s"Error for key: ${kt._2}", kt._3))
             }
           })
       }

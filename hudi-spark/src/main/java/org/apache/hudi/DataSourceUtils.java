@@ -194,8 +194,8 @@ public class DataSourceUtils {
     });
   }
 
-  public static HoodieWriteClient createHoodieClient(JavaSparkContext jssc, String schemaStr, String basePath,
-                                                     String tblName, Map<String, String> parameters) {
+  public static HoodieWriteConfig createHoodieConfig(String schemaStr, String basePath,
+      String tblName, Map<String, String> parameters) {
 
     // inline compaction is on by default for MOR
     boolean inlineCompact = parameters.get(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY())
@@ -204,7 +204,7 @@ public class DataSourceUtils {
     // insert/bulk-insert combining to be true, if filtering for duplicates
     boolean combineInserts = Boolean.parseBoolean(parameters.get(DataSourceWriteOptions.INSERT_DROP_DUPS_OPT_KEY()));
 
-    HoodieWriteConfig writeConfig = HoodieWriteConfig.newBuilder().withPath(basePath).withAutoCommit(false)
+    return HoodieWriteConfig.newBuilder().withPath(basePath).withAutoCommit(false)
         .combineInput(combineInserts, true).withSchema(schemaStr).forTable(tblName)
         .withIndexConfig(HoodieIndexConfig.newBuilder().withIndexType(HoodieIndex.IndexType.BLOOM).build())
         .withCompactionConfig(HoodieCompactionConfig.newBuilder()
@@ -212,8 +212,11 @@ public class DataSourceUtils {
             .withInlineCompaction(inlineCompact).build())
         // override above with Hoodie configs specified as options.
         .withProps(parameters).build();
+  }
 
-    return new HoodieWriteClient<>(jssc, writeConfig, true);
+  public static HoodieWriteClient createHoodieClient(JavaSparkContext jssc, String schemaStr, String basePath,
+                                                     String tblName, Map<String, String> parameters) {
+    return new HoodieWriteClient<>(jssc, createHoodieConfig(schemaStr, basePath, tblName, parameters), true);
   }
 
   public static JavaRDD<WriteStatus> doWriteOperation(HoodieWriteClient client, JavaRDD<HoodieRecord> hoodieRecords,

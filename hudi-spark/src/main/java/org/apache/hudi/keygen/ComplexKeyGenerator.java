@@ -29,6 +29,7 @@ import org.apache.avro.generic.GenericRecord;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.spark.sql.Row;
 
 /**
  * Complex key generator, which takes names of fields to be used for recordKey and partitionPath as configs.
@@ -99,11 +100,17 @@ public class ComplexKeyGenerator extends KeyGenerator {
     return new HoodieKey(recordKey.toString(), partitionPath.toString());
   }
 
-  public List<String> getRecordKeyFields() {
-    return recordKeyFields;
+  public boolean isRowKeyExtractionSupported() {
+    // key-generator implementation that inherits from this class needs to implement this method
+    return this.getClass().equals(ComplexKeyGenerator.class);
   }
 
-  public List<String> getPartitionPathFields() {
-    return partitionPathFields;
+  public String getRecordKeyFromRow(Row row) {
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
+  }
+
+  public String getPartitionPathFromRow(Row row) {
+    return RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(), getRowPartitionPathFieldsPos(),
+        hiveStylePartitioning);
   }
 }

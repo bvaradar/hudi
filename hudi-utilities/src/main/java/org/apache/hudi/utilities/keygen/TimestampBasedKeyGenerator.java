@@ -18,6 +18,7 @@
 
 package org.apache.hudi.utilities.keygen;
 
+import java.sql.Timestamp;
 import org.apache.hudi.DataSourceUtils;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieKey;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
+import org.apache.spark.sql.Row;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -153,5 +155,20 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
     }
 
     return MILLISECONDS.convert(partitionVal, timeUnit);
+  }
+
+  public boolean isRowKeyExtractionSupported() {
+    // key-generator implementation that inherits from this class needs to implement this method
+    return this.getClass().equals(TimestampBasedKeyGenerator.class);
+  }
+
+  public String getPartitionPathFromRow(Row row) {
+    Timestamp fieldVal = row.getAs(partitionPathField);
+    if (fieldVal == null) {
+      fieldVal = new Timestamp(1L);
+    }
+    SimpleDateFormat partitionPathFormat = new SimpleDateFormat(outputDateFormat);
+    partitionPathFormat.setTimeZone(timeZone);
+    return partitionPathFormat.format(fieldVal);
   }
 }

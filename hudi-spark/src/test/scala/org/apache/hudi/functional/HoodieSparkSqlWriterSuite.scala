@@ -21,7 +21,7 @@ import java.util.{Date, UUID}
 
 import org.apache.commons.io.FileUtils
 import org.apache.hudi.DataSourceWriteOptions._
-import org.apache.hudi.HoodieSparkSqlWriter
+import org.apache.hudi.{HoodieSparkSqlWriter, HoodieWriterUtils}
 import org.apache.hudi.config.HoodieWriteConfig
 import org.apache.hudi.exception.HoodieException
 import org.apache.spark.sql.{SaveMode, SparkSession}
@@ -30,11 +30,11 @@ import org.scalatest.{FunSuite, Matchers}
 class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
 
   test("Parameters With Write Defaults") {
-    val originals = HoodieSparkSqlWriter.parametersWithWriteDefaults(Map.empty)
+    val originals = HoodieWriterUtils.parametersWithWriteDefaults(Map.empty)
     val rhsKey = "hoodie.right.hand.side.key"
     val rhsVal = "hoodie.right.hand.side.val"
     val modifier = Map(OPERATION_OPT_KEY -> INSERT_OPERATION_OPT_VAL, TABLE_TYPE_OPT_KEY -> MOR_TABLE_TYPE_OPT_VAL, rhsKey -> rhsVal)
-    val modified = HoodieSparkSqlWriter.parametersWithWriteDefaults(modifier)
+    val modified = HoodieWriterUtils.parametersWithWriteDefaults(modifier)
     val matcher = (k: String, v: String) => modified(k) should be(v)
 
     originals foreach {
@@ -76,7 +76,7 @@ class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
         HoodieWriteConfig.TABLE_NAME -> hoodieFooTableName,
         "hoodie.insert.shuffle.parallelism" -> "4",
         "hoodie.upsert.shuffle.parallelism" -> "4")
-      val fooTableParams = HoodieSparkSqlWriter.parametersWithWriteDefaults(fooTableModifier)
+      val fooTableParams = HoodieWriterUtils.parametersWithWriteDefaults(fooTableModifier)
       val dataFrame = session.createDataFrame(Seq(Test(UUID.randomUUID().toString, new Date().getTime)))
       HoodieSparkSqlWriter.write(sqlContext, SaveMode.Append, fooTableParams, dataFrame)
 
@@ -85,7 +85,7 @@ class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
         HoodieWriteConfig.TABLE_NAME -> "hoodie_bar_tbl",
         "hoodie.insert.shuffle.parallelism" -> "4",
         "hoodie.upsert.shuffle.parallelism" -> "4")
-      val barTableParams = HoodieSparkSqlWriter.parametersWithWriteDefaults(barTableModifier)
+      val barTableParams = HoodieWriterUtils.parametersWithWriteDefaults(barTableModifier)
       val dataFrame2 = session.createDataFrame(Seq(Test(UUID.randomUUID().toString, new Date().getTime)))
       val tableAlreadyExistException = intercept[HoodieException](HoodieSparkSqlWriter.write(sqlContext, SaveMode.Append, barTableParams, dataFrame2))
       assert(tableAlreadyExistException.getMessage.contains("hoodie table with name " + hoodieFooTableName + " already exist"))

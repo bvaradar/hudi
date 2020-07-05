@@ -129,6 +129,7 @@ object DataSourceWriteOptions {
   val INSERT_OPERATION_OPT_VAL = "insert"
   val UPSERT_OPERATION_OPT_VAL = "upsert"
   val DELETE_OPERATION_OPT_VAL = "delete"
+  val BULK_INSERT_DATASET_OPERATION_OPT_VAL = "bulk_insert_dataset"
   val DEFAULT_OPERATION_OPT_VAL = UPSERT_OPERATION_OPT_VAL
 
   /**

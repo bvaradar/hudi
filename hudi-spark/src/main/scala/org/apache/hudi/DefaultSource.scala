@@ -104,7 +104,7 @@ class DefaultSource extends RelationProvider
                               optParams: Map[String, String],
                               df: DataFrame): BaseRelation = {
 
-    val parameters = HoodieSparkSqlWriter.parametersWithWriteDefaults(optParams)
+    val parameters = HoodieWriterUtils.parametersWithWriteDefaults(optParams)
     HoodieSparkSqlWriter.write(sqlContext, mode, parameters, df)
 
     new HudiEmptyRelation(sqlContext, df.schema)
@@ -114,7 +114,7 @@ class DefaultSource extends RelationProvider
                           optParams: Map[String, String],
                           partitionColumns: Seq[String],
                           outputMode: OutputMode): Sink = {
-    val parameters = HoodieSparkSqlWriter.parametersWithWriteDefaults(optParams)
+    val parameters = HoodieWriterUtils.parametersWithWriteDefaults(optParams)
     new HoodieStreamingSink(
       sqlContext,
       parameters,

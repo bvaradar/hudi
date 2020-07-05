@@ -86,6 +86,9 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
   public static final String FINALIZE_WRITE_PARALLELISM = "hoodie.finalize.write.parallelism";
   public static final String DEFAULT_FINALIZE_WRITE_PARALLELISM = DEFAULT_PARALLELISM;
 
+  public static final String KEYGENERATOR_CLASS_PROP = "hoodie.write.keygenerator.class";
+  public static final String DEFAULT_KEYGENERATOR_CLASS = "org.apache.hudi.keygen.SimpleKeyGenerator";
+
   public static final String EMBEDDED_TIMELINE_SERVER_ENABLED = "hoodie.embed.timeline.server";
   public static final String DEFAULT_EMBEDDED_TIMELINE_SERVER_ENABLED = "true";
 
@@ -244,6 +247,11 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
   public int getMaxConsistencyCheckIntervalMs() {
     return Integer.parseInt(props.getProperty(MAX_CONSISTENCY_CHECK_INTERVAL_MS_PROP));
   }
+
+  public String getKeyGeneratorClass() {
+    return props.getProperty(KEYGENERATOR_CLASS_PROP, DEFAULT_KEYGENERATOR_CLASS);
+  }
+
 
   /**
    * compaction properties.
@@ -836,6 +844,8 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
       setDefaultOnCondition(props, !props.containsKey(FAIL_ON_TIMELINE_ARCHIVING_ENABLED_PROP),
           FAIL_ON_TIMELINE_ARCHIVING_ENABLED_PROP, DEFAULT_FAIL_ON_TIMELINE_ARCHIVING_ENABLED);
       setDefaultOnCondition(props, !props.containsKey(AVRO_SCHEMA_VALIDATE), AVRO_SCHEMA_VALIDATE, DEFAULT_AVRO_SCHEMA_VALIDATE);
+      setDefaultOnCondition(props, !props.containsKey(KEYGENERATOR_CLASS_PROP), KEYGENERATOR_CLASS_PROP,
+          DEFAULT_KEYGENERATOR_CLASS);
 
       // Make sure the props is propagated
       setDefaultOnCondition(props, !isIndexConfigSet, HoodieIndexConfig.newBuilder().fromProperties(props).build());

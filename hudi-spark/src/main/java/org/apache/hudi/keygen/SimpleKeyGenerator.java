@@ -25,6 +25,7 @@ import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.exception.HoodieKeyException;
 
 import org.apache.avro.generic.GenericRecord;
+import org.apache.spark.sql.Row;
 
 /**
  * Simple key generator, which takes names of fields to be used for recordKey and partitionPath as configs.
@@ -67,5 +68,19 @@ public class SimpleKeyGenerator extends KeyGenerator {
     }
 
     return new HoodieKey(recordKey, partitionPath);
+  }
+
+  public boolean isRowKeyExtractionSupported() {
+    // key-generator implementation that inherits from this class needs to implement this method
+    return this.getClass().equals(SimpleKeyGenerator.class);
+  }
+
+  public String getRecordKeyFromRow(Row row) {
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
+  }
+
+  public String getPartitionPathFromRow(Row row) {
+    return RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(), getRowPartitionPathFieldsPos(),
+        hiveStylePartitioning);
   }
 }

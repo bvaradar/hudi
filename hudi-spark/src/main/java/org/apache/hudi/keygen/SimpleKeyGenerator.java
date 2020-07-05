@@ -18,6 +18,7 @@
 
 package org.apache.hudi.keygen;
 
+import java.util.Arrays;
 import org.apache.hudi.DataSourceUtils;
 import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.common.config.TypedProperties;
@@ -34,18 +35,23 @@ public class SimpleKeyGenerator extends KeyGenerator {
 
   private static final String DEFAULT_PARTITION_PATH = "default";
 
+  @Deprecated
   protected final String recordKeyField;
 
+  @Deprecated
   protected final String partitionPathField;
 
   protected final boolean hiveStylePartitioning;
 
   public SimpleKeyGenerator(TypedProperties props) {
     super(props);
-    this.recordKeyField = props.getString(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY());
-    this.partitionPathField = props.getString(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY());
+    this.setRecordKeyFields(Arrays.asList(props.getString(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY())));
+    this.setPartitionPathFields(Arrays.asList(props.getString(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY())));
     this.hiveStylePartitioning = props.getBoolean(DataSourceWriteOptions.HIVE_STYLE_PARTITIONING_OPT_KEY(),
         Boolean.parseBoolean(DataSourceWriteOptions.DEFAULT_HIVE_STYLE_PARTITIONING_OPT_VAL()));
+    // Retaining this for compatibility
+    this.recordKeyField = getRecordKeyFields().get(0);
+    this.partitionPathField = getPartitionPathFields().get(0);
   }
 
   @Override

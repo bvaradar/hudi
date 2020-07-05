@@ -18,10 +18,15 @@
 
 package org.apache.hudi.keygen;
 
+import org.apache.hudi.exception.HoodieKeyException;
+
+import org.apache.spark.sql.Row;
+
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.spark.sql.Row;
 
 public class RowKeyGeneratorHelper {
 
@@ -32,7 +37,8 @@ public class RowKeyGeneratorHelper {
   protected static final String EMPTY_RECORDKEY_PLACEHOLDER = "__empty__";
 
   public static String getRecordKeyFromRow(Row row, List<String> recordKeyFields, List<Integer> recordKeyFieldsPos) {
-    return IntStream.range(0, recordKeyFields.size()).mapToObj(idx -> {
+    AtomicBoolean keyIsNullOrEmpty = new AtomicBoolean(true);
+    String toReturn = IntStream.range(0, recordKeyFields.size()).mapToObj(idx -> {
       String field = recordKeyFields.get(idx);
       Integer fieldPos = recordKeyFieldsPos.get(idx);
       if (row.isNullAt(fieldPos)) {
@@ -42,8 +48,13 @@ public class RowKeyGeneratorHelper {
       if (val.isEmpty()) {
         return fieldPos + ":" + EMPTY_RECORDKEY_PLACEHOLDER;
       }
+      keyIsNullOrEmpty.set(false);
       return fieldPos + ":" + val;
     }).collect(Collectors.joining(","));
+    if (keyIsNullOrEmpty.get()) {
+      throw new HoodieKeyException("recordKey value: \"" + toReturn + "\" for fields: \"" + Arrays.toString(recordKeyFields.toArray()) + "\" cannot be null or empty.");
+    }
+    return toReturn;
   }
 
   public static String getPartitionPathFromRow(Row row, List<String> partitionPathFields,

@@ -51,6 +51,10 @@ public class NonpartitionedKeyGenerator extends SimpleKeyGenerator {
     return this.getClass().equals(NonpartitionedKeyGenerator.class);
   }
 
+  public String getRecordKeyFromRow(Row row){
+    return super.getRecordKeyFromRow(row);
+  }
+
   public String getPartitionPathFromRow(Row row) {
     return EMPTY_PARTITION;
   }

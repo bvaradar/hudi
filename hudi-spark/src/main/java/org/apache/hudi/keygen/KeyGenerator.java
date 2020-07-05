@@ -20,16 +20,24 @@ package org.apache.hudi.keygen;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.apache.hudi.AvroConversionHelper;
+import org.apache.hudi.AvroConversionUtils;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieKey;
 
+import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 
 import java.io.Serializable;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.types.StructType;
+
+import scala.Function1;
 
 /**
  * Abstract class to extend for plugging in extraction of {@link HoodieKey} from an Avro record.
@@ -53,6 +61,18 @@ public abstract class KeyGenerator implements Serializable {
    * Generate a Hoodie Key out of provided generic record.
    */
   public abstract HoodieKey getKey(GenericRecord record);
+
+  public String getRecordKey(Row row, StructType schema, Schema avroSchema){
+    Function1<Object, Object> converterFn = AvroConversionHelper.createConverterToRow(avroSchema, schema);
+    GenericRecord genericRecord = (GenericRecord) converterFn.apply(row);
+    return getKey(genericRecord).getRecordKey();
+  }
+
+  public String getPartitionPath(Row row, StructType schema, Schema avroSchema){
+    Function1<Object, Object> converterFn = AvroConversionHelper.createConverterToRow(avroSchema, schema);
+    GenericRecord genericRecord = (GenericRecord) converterFn.apply(row);
+    return getKey(genericRecord).getPartitionPath();
+  }
 
   public boolean isRowKeyExtractionSupported() {
     return false;

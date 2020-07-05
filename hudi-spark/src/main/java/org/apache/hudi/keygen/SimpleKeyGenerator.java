@@ -18,7 +18,6 @@
 
 package org.apache.hudi.keygen;
 
-import java.util.Arrays;
 import org.apache.hudi.DataSourceUtils;
 import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.common.config.TypedProperties;
@@ -27,6 +26,8 @@ import org.apache.hudi.exception.HoodieKeyException;
 
 import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.sql.Row;
+
+import java.util.Arrays;
 
 /**
  * Simple key generator, which takes names of fields to be used for recordKey and partitionPath as configs.

@@ -25,6 +25,7 @@ import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.exception.HoodieKeyException;
 
 import org.apache.avro.generic.GenericRecord;
+import org.apache.spark.sql.Row;
 
 import java.util.Arrays;
 import java.util.List;
@@ -39,15 +40,14 @@ public class GlobalDeleteKeyGenerator extends KeyGenerator {
   private static final String NULL_RECORDKEY_PLACEHOLDER = "__null__";
   private static final String EMPTY_RECORDKEY_PLACEHOLDER = "__empty__";
 
-  protected final List<String> recordKeyFields;
-
   public GlobalDeleteKeyGenerator(TypedProperties config) {
     super(config);
-    this.recordKeyFields = Arrays.asList(config.getString(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY()).split(","));
+    this.setRecordKeyFields(Arrays.asList(config.getString(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY()).split(",")));
   }
 
   @Override
   public HoodieKey getKey(GenericRecord record) {
+    List<String> recordKeyFields = getRecordKeyFields();
     if (recordKeyFields == null) {
       throw new HoodieKeyException("Unable to find field names for record key or partition path in cfg");
     }
@@ -72,5 +72,18 @@ public class GlobalDeleteKeyGenerator extends KeyGenerator {
     }
 
     return new HoodieKey(recordKey.toString(), EMPTY_PARTITION);
+  }
+
+  public boolean isRowKeyExtractionSupported() {
+    // key-generator implementation that inherits from this class needs to implement this method
+    return this.getClass().equals(GlobalDeleteKeyGenerator.class);
+  }
+
+  public String getRecordKeyFromRow(Row row) {
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
+  }
+
+  public String getPartitionPathFromRow(Row row) {
+    return EMPTY_PARTITION;
   }
 }

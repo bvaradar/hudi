@@ -74,11 +74,6 @@ public class GlobalDeleteKeyGenerator extends KeyGenerator {
     return new HoodieKey(recordKey.toString(), EMPTY_PARTITION);
   }
 
-  public boolean isRowKeyExtractionSupported() {
-    // key-generator implementation that inherits from this class needs to implement this method
-    return this.getClass().equals(GlobalDeleteKeyGenerator.class);
-  }
-
   public String getRecordKeyFromRow(Row row) {
     return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
   }

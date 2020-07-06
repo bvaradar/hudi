@@ -95,11 +95,6 @@ public class ComplexKeyGenerator extends KeyGenerator {
     return new HoodieKey(recordKey.toString(), partitionPath.toString());
   }
 
-  public boolean isRowKeyExtractionSupported() {
-    // key-generator implementation that inherits from this class needs to implement this method
-    return this.getClass().equals(ComplexKeyGenerator.class);
-  }
-
   public String getRecordKeyFromRow(Row row) {
     return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
   }

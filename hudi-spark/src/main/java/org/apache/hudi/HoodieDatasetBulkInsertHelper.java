@@ -27,9 +27,9 @@ import java.util.stream.Stream;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.hudi.common.util.ReflectionUtils;
-import org.apache.hudi.common.util.ValidationUtils;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.keygen.KeyGenerator;
+
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.sql.Column;
@@ -61,18 +61,16 @@ public class HoodieDatasetBulkInsertHelper {
    * @return hoodie dataset which is ready for bulk insert.
    */
   public static Dataset<Row> prepareHoodieDatasetForBulkInsert(SQLContext sqlContext,
-      HoodieWriteConfig config, Dataset<Row> rows) {
+      HoodieWriteConfig config, Dataset<Row> rows, String structName, String recordNamespace) {
     List<Column> originalFields =
         Arrays.stream(rows.schema().fields()).map(f -> new Column(f.name())).collect(Collectors.toList());
 
     TypedProperties properties = new TypedProperties();
     properties.putAll(config.getProps());
     KeyGenerator keyGenerator = (KeyGenerator) ReflectionUtils.loadClass(config.getKeyGeneratorClass(), properties);
-    ValidationUtils.checkArgument(keyGenerator.isRowKeyExtractionSupported(),
-        "Key Generator (" + keyGenerator.getClass() + ") do not support APIs for extracting record key "
-            + "and partition path from Row");
     StructType structTypeForUDF = rows.schema();
-    keyGenerator.initializeRowKeyGenerator(structTypeForUDF);
+
+    keyGenerator.initializeRowKeyGenerator(structTypeForUDF, structName, recordNamespace);
 
     sqlContext.udf().register(RECORD_KEY_UDF_FN, new UDF1<Row, String>() {
       @Override

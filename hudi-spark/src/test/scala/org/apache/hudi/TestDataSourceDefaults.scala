@@ -24,6 +24,7 @@ import org.apache.hudi.common.testutils.SchemaTestUtil
 import org.apache.hudi.common.util.Option
 import org.apache.hudi.exception.{HoodieException, HoodieKeyException}
 import org.apache.hudi.keygen.{ComplexKeyGenerator, GlobalDeleteKeyGenerator, SimpleKeyGenerator}
+import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{BeforeEach, Test}
 import org.scalatest.Assertions.fail
@@ -34,13 +35,19 @@ import org.scalatest.Assertions.fail
 class TestDataSourceDefaults {
 
   val schema = SchemaTestUtil.getComplexEvolvedSchema
+  val structType = AvroConversionUtils.convertAvroSchemaToStructType(schema)
   var baseRecord: GenericRecord = _
+  var baseRow : Row = _
 
   @BeforeEach def initialize(): Unit = {
     baseRecord = SchemaTestUtil
       .generateAvroRecordFromJson(schema, 1, "001", "f1")
+    baseRow = AvroConversionHelper.createConverterToRow(schema, structType).apply(baseRecord).asInstanceOf[Row]
   }
 
+  private def getRowFromGenericRecord(genRec: GenericRecord): Row = {
+    AvroConversionHelper.createConverterToRow(schema, structType).apply(genRec).asInstanceOf[Row]
+  }
 
   private def getKeyConfig(recordKeyFieldName: String, partitionPathField: String, hiveStylePartitioning: String): TypedProperties = {
     val props = new TypedProperties()

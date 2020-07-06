@@ -18,24 +18,20 @@
 
 package org.apache.hudi.keygen;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.apache.hudi.AvroConversionHelper;
-import org.apache.hudi.AvroConversionUtils;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieKey;
+import org.apache.hudi.common.util.ValidationUtils;
 
-import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
-
-import java.io.Serializable;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.encoders.ExpressionEncoder;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.apache.spark.sql.types.StructType;
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import scala.Function1;
 
@@ -52,6 +48,7 @@ public abstract class KeyGenerator implements Serializable {
   private List<String> partitionPathFields;
   private List<Integer> rowKeyFieldsPos;
   private List<Integer> rowPartitionPathFieldsPos;
+  private Function1<Object, Object> converterFn = null;
 
   protected KeyGenerator(TypedProperties config) {
     this.config = config;
@@ -62,38 +59,27 @@ public abstract class KeyGenerator implements Serializable {
    */
   public abstract HoodieKey getKey(GenericRecord record);
 
-  public String getRecordKey(Row row, StructType schema, Schema avroSchema){
-    Function1<Object, Object> converterFn = AvroConversionHelper.createConverterToRow(avroSchema, schema);
+  public void initializeRowKeyGenerator(StructType structType, String structName, String recordNamespace) {
+    this.rowKeyFieldsPos = getRecordKeyFields().stream()
+        .map(f -> (Integer) (structType.getFieldIndex(f).get()))
+        .collect(Collectors.toList());
+    this.rowPartitionPathFieldsPos = getPartitionPathFields().stream()
+        .filter(f -> !f.isEmpty())
+        .map(f -> (Integer) (structType.getFieldIndex(f).get()))
+        .collect(Collectors.toList());
+    converterFn = AvroConversionHelper.createConverterToAvro(structType, structName, recordNamespace);
+  }
+
+  public String getRecordKeyFromRow(Row row) {
+    ValidationUtils.checkArgument((converterFn != null), "initializeRowKeyGenerator hasn't been invoked");
     GenericRecord genericRecord = (GenericRecord) converterFn.apply(row);
     return getKey(genericRecord).getRecordKey();
   }
 
-  public String getPartitionPath(Row row, StructType schema, Schema avroSchema){
-    Function1<Object, Object> converterFn = AvroConversionHelper.createConverterToRow(avroSchema, schema);
+  public String getPartitionPathFromRow(Row row) {
+    ValidationUtils.checkArgument((converterFn != null), "initializeRowKeyGenerator hasn't been invoked");
     GenericRecord genericRecord = (GenericRecord) converterFn.apply(row);
     return getKey(genericRecord).getPartitionPath();
-  }
-
-  public boolean isRowKeyExtractionSupported() {
-    return false;
-  }
-
-  public void initializeRowKeyGenerator(StructType structType) {
-    this.rowKeyFieldsPos = getRecordKeyFields().stream()
-        .map(f -> (Integer)(structType.getFieldIndex(f).get()))
-        .collect(Collectors.toList());
-    this.rowPartitionPathFieldsPos = getPartitionPathFields().stream()
-        .filter(f -> !f.isEmpty())
-        .map(f -> (Integer)(structType.getFieldIndex(f).get()))
-        .collect(Collectors.toList());
-  }
-
-  public String getRecordKeyFromRow(Row row) {
-    throw new IllegalArgumentException("Not Implemented");
-  }
-
-  public String getPartitionPathFromRow(Row row) {
-    throw new IllegalArgumentException("Not Implemented");
   }
 
   protected List<String> getRecordKeyFields() {

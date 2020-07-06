@@ -46,11 +46,6 @@ public class NonpartitionedKeyGenerator extends SimpleKeyGenerator {
     return new HoodieKey(recordKey, EMPTY_PARTITION);
   }
 
-  public boolean isRowKeyExtractionSupported() {
-    // key-generator implementation that inherits from this class needs to implement this method
-    return this.getClass().equals(NonpartitionedKeyGenerator.class);
-  }
-
   public String getRecordKeyFromRow(Row row){
     return super.getRecordKeyFromRow(row);
   }

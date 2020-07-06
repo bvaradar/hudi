@@ -118,35 +118,40 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
     if (partitionVal == null) {
       partitionVal = 1L;
     }
-    SimpleDateFormat partitionPathFormat = new SimpleDateFormat(outputDateFormat);
-    partitionPathFormat.setTimeZone(timeZone);
-
     try {
-      long timeMs;
-      if (partitionVal instanceof Double) {
-        timeMs = convertLongTimeToMillis(((Double) partitionVal).longValue());
-      } else if (partitionVal instanceof Float) {
-        timeMs = convertLongTimeToMillis(((Float) partitionVal).longValue());
-      } else if (partitionVal instanceof Long) {
-        timeMs = convertLongTimeToMillis((Long) partitionVal);
-      } else if (partitionVal instanceof CharSequence) {
-        timeMs = inputDateFormat.parse(partitionVal.toString()).getTime();
-      } else {
-        throw new HoodieNotSupportedException(
-            "Unexpected type for partition field: " + partitionVal.getClass().getName());
-      }
-      Date timestamp = new Date(timeMs);
+      String partitionPath = getPartitionPath(partitionVal);
+
       String recordKey = DataSourceUtils.getNestedFieldValAsString(record, recordKeyField, true);
       if (recordKey == null || recordKey.isEmpty()) {
         throw new HoodieKeyException("recordKey value: \"" + recordKey + "\" for field: \"" + recordKeyField + "\" cannot be null or empty.");
       }
 
-      String partitionPath = hiveStylePartitioning ? partitionPathField + "=" + partitionPathFormat.format(timestamp)
-          : partitionPathFormat.format(timestamp);
       return new HoodieKey(recordKey, partitionPath);
     } catch (ParseException pe) {
       throw new HoodieDeltaStreamerException("Unable to parse input partition field :" + partitionVal, pe);
     }
+  }
+
+  private String getPartitionPath(Object partitionVal) throws ParseException {
+    SimpleDateFormat partitionPathFormat = new SimpleDateFormat(outputDateFormat);
+    partitionPathFormat.setTimeZone(timeZone);
+
+    long timeMs;
+    if (partitionVal instanceof Double) {
+      timeMs = convertLongTimeToMillis(((Double) partitionVal).longValue());
+    } else if (partitionVal instanceof Float) {
+      timeMs = convertLongTimeToMillis(((Float) partitionVal).longValue());
+    } else if (partitionVal instanceof Long) {
+      timeMs = convertLongTimeToMillis((Long) partitionVal);
+    } else if (partitionVal instanceof CharSequence) {
+      timeMs = inputDateFormat.parse(partitionVal.toString()).getTime();
+    } else {
+      throw new HoodieNotSupportedException(
+          "Unexpected type for partition field: " + partitionVal.getClass().getName());
+    }
+    Date timestamp = new Date(timeMs);
+    return hiveStylePartitioning ? partitionPathField + "=" + partitionPathFormat.format(timestamp)
+        : partitionPathFormat.format(timestamp);
   }
 
   private long convertLongTimeToMillis(Long partitionVal) {
@@ -158,26 +163,21 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
     return MILLISECONDS.convert(partitionVal, timeUnit);
   }
 
-  public boolean isRowKeyExtractionSupported() {
-    // key-generator implementation that inherits from this class needs to implement this method
-    return this.getClass().equals(TimestampBasedKeyGenerator.class);
-  }
-
   public String getRecordKeyFromRow(Row row) {
     return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
   }
 
   public String getPartitionPathFromRow(Row row) {
-    Timestamp fieldVal = null;
-    if (row.isNullAt(getRowPartitionPathFieldsPos().get(0))) {
-      fieldVal = new Timestamp(1L);
-    } else {
-      fieldVal = row.getAs(getPartitionPathFields().get(0));
+    Object fieldVal = null;
+    try {
+      if (row.isNullAt(getRowPartitionPathFieldsPos().get(0))) {
+        fieldVal = 1L;
+      } else {
+        fieldVal = row.get(getRowPartitionPathFieldsPos().get(0));
+      }
+      return getPartitionPath(fieldVal);
+    } catch (ParseException e) {
+      throw new HoodieDeltaStreamerException("Unable to parse input partition field :" + fieldVal, e);
     }
-
-    SimpleDateFormat partitionPathFormat = new SimpleDateFormat(outputDateFormat);
-    partitionPathFormat.setTimeZone(timeZone);
-    return hiveStylePartitioning ? getPartitionPathFields().get(0) + "=" + partitionPathFormat.format(fieldVal)
-        : partitionPathFormat.format(fieldVal);
   }
 }

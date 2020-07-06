@@ -77,11 +77,6 @@ public class SimpleKeyGenerator extends KeyGenerator {
     return new HoodieKey(recordKey, partitionPath);
   }
 
-  public boolean isRowKeyExtractionSupported() {
-    // key-generator implementation that inherits from this class needs to implement this method
-    return this.getClass().equals(SimpleKeyGenerator.class);
-  }
-
   public String getRecordKeyFromRow(Row row) {
     return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
   }

@@ -20,9 +20,7 @@ package org.apache.hudi.keygen;
 
 import org.apache.hudi.exception.HoodieKeyException;
 
-import org.apache.avro.Schema;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 

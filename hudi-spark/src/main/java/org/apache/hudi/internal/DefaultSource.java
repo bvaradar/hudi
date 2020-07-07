@@ -18,15 +18,13 @@
 
 package org.apache.hudi.internal;
 
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hudi.DataSourceUtils;
+import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.HoodieWriterUtils;
-import org.apache.hudi.common.table.HoodieTableMetaClient;
-import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
+import org.apache.hudi.common.model.WriteOperationType;
 import org.apache.hudi.config.HoodieWriteConfig;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.sql.SaveMode;
@@ -39,6 +37,10 @@ import org.apache.spark.sql.sources.v2.WriteSupport;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.types.StructType;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
 
 /**
  * DataSource V2 implementation for managing internal write logic. Only called internally.
@@ -70,30 +72,15 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport,
   @Override
   public Optional<DataSourceWriter> createWriter(String writeUUID, StructType schema, SaveMode mode,
       DataSourceOptions options) {
-    /**
-    StructType hoodieFields = new StructType( new StructField[]{
-        DataTypes.createStructField(HoodieRecord.COMMIT_TIME_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.COMMIT_SEQNO_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.RECORD_KEY_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.PARTITION_PATH_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.FILENAME_METADATA_FIELD, DataTypes.StringType, true),
-    });
-    schema = hoodieFields.merge(schema);
-
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Merged Schema =" + schema);
-    }
-     **/
-
-    String instantTime = HoodieActiveTimeline.createNewInstantTime();
+    String instantTime = options.get(DataSourceWriteOptions.INSTANT_TIME()).get();
     Map<String, String> paramsWithDefaults = HoodieWriterUtils.javaParametersWithWriteDefaults(options.asMap());
     Properties props = new Properties();
     props.putAll(paramsWithDefaults);
     String path = options.get("path").get();
     String tblName = options.get(HoodieWriteConfig.TABLE_NAME).get();
     HoodieWriteConfig config = DataSourceUtils.createHoodieConfig(null, path, tblName, options.asMap());
-    HoodieTableMetaClient metaClient = new HoodieTableMetaClient(getConfiguration(), config.getBasePath());
-    return Optional.of(new HoodieDataSourceInternalWriter(instantTime, metaClient, config, schema));
+    return Optional.of(new HoodieDataSourceInternalWriter(instantTime, config, schema, getSparkSession(),
+            getConfiguration(), WriteOperationType.BULK_INSERT_DIRECT_DATASET));
   }
 
   private SparkSession getSparkSession() {

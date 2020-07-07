@@ -21,7 +21,6 @@ package org.apache.hudi.keygen;
 import org.apache.hudi.AvroConversionHelper;
 import org.apache.hudi.common.config.TypedProperties;
 import org.apache.hudi.common.model.HoodieKey;
-import org.apache.hudi.common.util.ValidationUtils;
 
 import org.apache.avro.generic.GenericRecord;
 import org.apache.log4j.LogManager;
@@ -54,9 +53,12 @@ public abstract class KeyGenerator implements Serializable {
   private List<String> recordKeyFields;
   private List<String> partitionPathFields;
   private Map<String, List<Integer>> recordKeyPositions = new HashMap<>();
+
   private Map<String, List<Integer>> partitionPathPositions = new HashMap<>();
-  private Function1<Object, Object> converterFn = null;
+  private transient Function1<Object, Object> converterFn = null;
   protected StructType structType;
+  private String structName;
+  private String recordNamespace;
 
   protected KeyGenerator(TypedProperties config) {
     this.config = config;
@@ -77,29 +79,32 @@ public abstract class KeyGenerator implements Serializable {
         .filter(f -> f.contains("."))
         .forEach(f -> recordKeyPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, true)));
     // parse simple fields
-    if(getPartitionPathFields() != null) {
-      getPartitionPathFields().stream()
-          .filter(f -> !f.isEmpty())
-          .filter(f -> !(f.contains(".")))
-          .forEach(f -> partitionPathPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
+    if (getPartitionPathFields() != null) {
+      getPartitionPathFields().stream().filter(f -> !f.isEmpty()).filter(f -> !(f.contains(".")))
+          .forEach(f -> partitionPathPositions.put(f,
+              Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
       // parse nested fields
-      getPartitionPathFields().stream()
-          .filter(f -> !f.isEmpty())
-          .filter(f -> f.contains("."))
-          .forEach(f -> partitionPathPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, false)));
+      getPartitionPathFields().stream().filter(f -> !f.isEmpty()).filter(f -> f.contains("."))
+          .forEach(f -> partitionPathPositions.put(f,
+              RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, false)));
     }
+    this.structName = structName;
     this.structType = structType;
-    converterFn = AvroConversionHelper.createConverterToAvro(structType, structName, recordNamespace);
+    this.recordNamespace = recordNamespace;
   }
 
   public String getRecordKeyFromRow(Row row) {
-    ValidationUtils.checkArgument((converterFn != null), "initializeRowKeyGenerator hasn't been invoked");
+    if (null != converterFn) {
+      converterFn = AvroConversionHelper.createConverterToAvro(structType, structName, recordNamespace);
+    }
     GenericRecord genericRecord = (GenericRecord) converterFn.apply(row);
     return getKey(genericRecord).getRecordKey();
   }
 
   public String getPartitionPathFromRow(Row row) {
-    ValidationUtils.checkArgument((converterFn != null), "initializeRowKeyGenerator hasn't been invoked");
+    if (null != converterFn) {
+      converterFn = AvroConversionHelper.createConverterToAvro(structType, structName, recordNamespace);
+    }
     GenericRecord genericRecord = (GenericRecord) converterFn.apply(row);
     return getKey(genericRecord).getPartitionPath();
   }

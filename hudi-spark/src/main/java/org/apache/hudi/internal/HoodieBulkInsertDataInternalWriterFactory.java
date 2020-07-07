@@ -18,23 +18,24 @@
 
 package org.apache.hudi.internal;
 
-import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.hudi.table.HoodieTable;
+
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
 import org.apache.spark.sql.types.StructType;
 
-public class HoodieDataInternalWriterFactory implements DataWriterFactory<InternalRow> {
+public class HoodieBulkInsertDataInternalWriterFactory implements DataWriterFactory<InternalRow> {
 
   private final String instantTime;
-  private final HoodieTableMetaClient metaClient;
+  private final HoodieTable hoodieTable;
   private final HoodieWriteConfig writeConfig;
   private final StructType structType;
 
-  public HoodieDataInternalWriterFactory(HoodieTableMetaClient metaClient, HoodieWriteConfig writeConfig,
-      String instantTime, StructType structType) {
-    this.metaClient = metaClient;
+  public HoodieBulkInsertDataInternalWriterFactory(HoodieTable hoodieTable, HoodieWriteConfig writeConfig,
+                                                   String instantTime, StructType structType) {
+    this.hoodieTable = hoodieTable;
     this.writeConfig = writeConfig;
     this.instantTime = instantTime;
     this.structType = structType;
@@ -42,6 +43,7 @@ public class HoodieDataInternalWriterFactory implements DataWriterFactory<Intern
 
   @Override
   public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
-    return new HoodieDataInternalWriter(metaClient, writeConfig, instantTime, partitionId, taskId, epochId, structType);
+    return new HoodieBulkInsertDataInternalWriter(hoodieTable, writeConfig, instantTime, partitionId, taskId, epochId,
+            structType);
   }
 }

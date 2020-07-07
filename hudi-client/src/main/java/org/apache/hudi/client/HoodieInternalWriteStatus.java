@@ -18,13 +18,13 @@
 
 package org.apache.hudi.client;
 
+import org.apache.hudi.common.model.HoodieWriteStat;
+import org.apache.hudi.common.util.collection.Pair;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import org.apache.hudi.common.model.HoodieWriteStat;
-import org.apache.hudi.common.util.collection.Pair;
-import org.apache.spark.sql.Row;
 
 public class HoodieInternalWriteStatus implements Serializable {
 
@@ -36,9 +36,6 @@ public class HoodieInternalWriteStatus implements Serializable {
   private List<String> successRecordKeys = new ArrayList<>();
   private List<Pair<String, Throwable>> failedRecordKeys = new ArrayList<>();
 
-  //public Throwable globalError;
-  public String path;
-  private long endTime;
   private HoodieWriteStat stat;
 
   private long totalRecords = 0;
@@ -55,9 +52,9 @@ public class HoodieInternalWriteStatus implements Serializable {
     this.random = new Random(RANDOM_SEED);
   }
 
-  public void markSuccess(Row row) {
+  public void markSuccess(String recordKey) {
     if (trackSuccessRecords) {
-      this.successRecordKeys.add(row.getAs("_hoodie_record_key").toString());
+      this.successRecordKeys.add(recordKey);
     }
     totalRecords++;
   }
@@ -114,22 +111,6 @@ public class HoodieInternalWriteStatus implements Serializable {
     this.failedRecordKeys = failedRecordKeys;
   }
 
-  public String getFilePath() {
-    return path;
-  }
-
-  public void setFilePath(String path) {
-    this.path = path;
-  }
-
-  public long getEndTime() {
-    return endTime;
-  }
-
-  public void setEndTime(long endTime) {
-    this.endTime = endTime;
-  }
-
   public long getTotalRecords() {
     return totalRecords;
   }
@@ -158,19 +139,10 @@ public class HoodieInternalWriteStatus implements Serializable {
     this.successRecordKeys = successRecordKeys;
   }
 
-  public String getPath() {
-    return path;
-  }
-
-  public void setPath(String path) {
-    this.path = path;
-  }
-
   @Override
   public String toString() {
     return "PartitionPath " + partitionPath + ", FileID " + fileId + ", Success records "
         + totalRecords + ", errored Rows " + totalErrorRecords
-        + ", global error " + (globalError != null)
-        + ", end time " + endTime;
+        + ", global error " + (globalError != null);
   }
 }

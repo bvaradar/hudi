@@ -80,7 +80,7 @@ public class TestTimestampBasedKeyGenerator {
     Row row = (Row) convertor.apply(baseRecord);
     int fieldCount = structType.fieldNames().length;
     Object[] values = new Object[fieldCount];
-    for (int i =0;i< fieldCount;i++) {
+    for (int i = 0; i < fieldCount; i++) {
       values[i] = row.get(i);
     }
     return new GenericRowWithSchema(values, structType);

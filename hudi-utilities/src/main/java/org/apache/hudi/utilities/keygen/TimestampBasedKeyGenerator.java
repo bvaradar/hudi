@@ -132,7 +132,7 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
   }
 
   /**
-   * Parse and fetch partition path based on data type
+   * Parse and fetch partition path based on data type.
    * @param partitionVal partition path object value fetched from record/row
    * @return the parsed partition path based on data type
    * @throws ParseException on any parse exception

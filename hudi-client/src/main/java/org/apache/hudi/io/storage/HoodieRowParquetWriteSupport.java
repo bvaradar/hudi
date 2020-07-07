@@ -45,6 +45,7 @@ public class HoodieRowParquetWriteSupport extends ParquetWriteSupport {
   public HoodieRowParquetWriteSupport(Configuration conf, StructType structType, BloomFilter bloomFilter) {
     super();
     Configuration hadoopConf = new Configuration(conf);
+    ParquetWriteSupport.setSchema(structType, hadoopConf);
     hadoopConf.set("spark.sql.parquet.writeLegacyFormat", "false");
     hadoopConf.set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MILLIS");
     this.hadoopConf = hadoopConf;

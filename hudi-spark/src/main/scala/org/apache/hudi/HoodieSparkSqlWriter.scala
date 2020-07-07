@@ -104,8 +104,10 @@ private[hudi] object HoodieSparkSqlWriter {
           throw new HoodieException(s"hoodie table at $basePath already exists.")
         }
 
+        val success =
         if (mode == SaveMode.Ignore && exists) {
           log.warn(s"hoodie table at $basePath already exists. Ignoring & not performing actual writes.")
+          true
         } else {
           if (mode == SaveMode.Overwrite && exists) {
             log.warn(s"hoodie table at $basePath already exists. Deleting existing data & overwriting with new data.")
@@ -123,9 +125,19 @@ private[hudi] object HoodieSparkSqlWriter {
             mapAsJavaMap(parameters))
 
           val hoodieDF = HoodieDatasetBulkInsertHelper.prepareHoodieDatasetForBulkInsert(sqlContext, writeConfig, df, structName, nameSpace)
-          hoodieDF.write.format("org.apache.hudi.internal").options(parameters).save()
+          hoodieDF.write.format("org.apache.hudi.internal").option(INSTANT_TIME, instantTime)
+            .options(parameters).save()
+          val hiveSyncEnabled = parameters.get(HIVE_SYNC_ENABLED_OPT_KEY).exists(r => r.toBoolean)
+          val syncHiveSucess = if (hiveSyncEnabled) {
+            log.info("Syncing to Hive Metastore (URL: " + parameters(HIVE_URL_OPT_KEY) + ")")
+            val fs = FSUtils.getFs(basePath.toString, jsc.hadoopConfiguration)
+            syncHive(basePath, fs, parameters)
+          } else {
+            true
+          }
+          syncHiveSucess
         }
-        (true, common.util.Option.ofNullable(instantTime))
+        (success, common.util.Option.ofNullable(instantTime))
       } else {
         val (writeStatuses, writeClient: HoodieWriteClient[HoodieRecordPayload[Nothing]]) =
           if (!operation.equalsIgnoreCase(DELETE_OPERATION_OPT_VAL)) {
@@ -270,8 +282,8 @@ private[hudi] object HoodieSparkSqlWriter {
       val commitSuccess = if (metaMap.isEmpty) {
         client.commit(instantTime, writeStatuses)
       } else {
-        client.commit(instantTime, writeStatuses,
-          common.util.Option.of(new util.HashMap[String, String](mapAsJavaMap(metaMap))))
+        val extraMetadata : util.Map[String, String] = new util.HashMap[String, String](mapAsJavaMap(metaMap));
+        client.commit(instantTime, writeStatuses, common.util.Option.of(extraMetadata))
       }
 
       if (commitSuccess) {

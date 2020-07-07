@@ -136,7 +136,7 @@ public class HoodieJavaApp {
         // Hoodie Table Type
         .option(DataSourceWriteOptions.TABLE_TYPE_OPT_KEY(), tableType)
         // insert
-        .option(DataSourceWriteOptions.OPERATION_OPT_KEY(), DataSourceWriteOptions.INSERT_OPERATION_OPT_VAL())
+        .option(DataSourceWriteOptions.OPERATION_OPT_KEY(), DataSourceWriteOptions.BULK_INSERT_DATASET_OPERATION_OPT_VAL())
         // This is the record key
         .option(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY(), "_row_key")
         // this is the partition to place it into

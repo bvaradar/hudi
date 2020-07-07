@@ -111,6 +111,6 @@ public class HoodieDatasetBulkInsertHelper {
 
     return colOrderedDataset.sort(functions.col(HoodieRecord.PARTITION_PATH_METADATA_FIELD),
         functions.col(HoodieRecord.RECORD_KEY_METADATA_FIELD))
-        .repartition(config.getBulkInsertShuffleParallelism());
+        .coalesce(config.getBulkInsertShuffleParallelism());
   }
 }

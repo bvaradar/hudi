@@ -29,6 +29,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.client.HoodieInternalWriteStatus;
+import org.apache.hudi.client.HoodieWriteClient;
+import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.bloom.BloomFilter;
 import org.apache.hudi.common.bloom.BloomFilterFactory;
 import org.apache.hudi.common.fs.FSUtils;
@@ -39,7 +41,11 @@ import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.util.HoodieTimer;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieIOException;
+import org.apache.hudi.io.storage.HoodieParquetConfig;
 import org.apache.hudi.io.storage.HoodieRowParquetWriteSupport;
+import org.apache.hudi.io.storage.HoodieInternalRowParquetWriter;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
@@ -47,6 +53,9 @@ import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.sql.types.StructType;
 
 public class HoodieDataInternalWriter implements DataWriter<InternalRow> {
+
+  private static final long serialVersionUID = 1L;
+  private static final Logger LOG = LogManager.getLogger(HoodieDataInternalWriter.class);
 
   private final String instantTime;
   private final int partitionId;
@@ -57,9 +66,10 @@ public class HoodieDataInternalWriter implements DataWriter<InternalRow> {
   private final StructType structType;
   private final List<HoodieInternalWriteStatus> writeStatusList = new ArrayList<>();
 
+  protected HoodieInternalWriteStatus writeStatus;
+  private HoodieInternalRowParquetWriter writer;
   private String lastKnownPartitionPath = null;
   private HoodieRowParquetWriteSupport writeSupport;
-  private ParquetWriter<InternalRow> writer;
   private String currFileId;
   private Path currFilePath;
   private long currRecordsWritten = 0;
@@ -82,10 +92,12 @@ public class HoodieDataInternalWriter implements DataWriter<InternalRow> {
   public void write(InternalRow record) throws IOException {
     String partitionPath = record.getUTF8String(
         HoodieRecord.HOODIE_META_COLUMNS_NAME_TO_POS.get(HoodieRecord.PARTITION_PATH_METADATA_FIELD)).toString();
-    if (lastKnownPartitionPath == null || !lastKnownPartitionPath.equals(partitionPath)) {
+    if ((lastKnownPartitionPath == null) || !lastKnownPartitionPath.equals(partitionPath) || !writer.canWrite()) {
+      LOG.info("Creating new file for partition path " + partitionPath);
       createNewParquetWriter(partitionPath);
       lastKnownPartitionPath = partitionPath;
     }
+
     String seqId = HoodieRecord.generateSequenceId(instantTime, partitionId, SEQGEN.getAndIncrement());
     currRecordsWritten++;
     String recordKey = record.getUTF8String(
@@ -130,11 +142,10 @@ public class HoodieDataInternalWriter implements DataWriter<InternalRow> {
     currRecordsWritten = 0;
     currFilePath = makeNewPath(partitionPath);
     // instantiate writer
-    writer = new ParquetWriter<InternalRow>(currFilePath, writeSupport,
-        writeConfig.getParquetCompressionCodec(), writeConfig.getParquetBlockSize(),
-        writeConfig.getParquetPageSize(), (int) writeConfig.getParquetMaxFileSize(), DEFAULT_IS_DICTIONARY_ENABLED,
-        DEFAULT_IS_VALIDATING_ENABLED, DEFAULT_WRITER_VERSION,
-        writeSupport.getHadoopConf());
+    writer = new HoodieInternalRowParquetWriter(currFilePath, structType, metaClient.getHadoopConf(), writeConfig,
+            new HoodieParquetConfig(null, writeConfig.getParquetCompressionCodec(),
+            writeConfig.getParquetBlockSize(), writeConfig.getParquetPageSize(), writeConfig.getParquetMaxFileSize(),
+            metaClient.getHadoopConf(), writeConfig.getParquetCompressionRatio()));
   }
 
   private Path makeNewPath(String partitionPath) {

@@ -23,12 +23,15 @@ import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hudi.DataSourceUtils;
+import org.apache.hudi.DataSourceWriteOptions;
 import org.apache.hudi.HoodieWriterUtils;
+import org.apache.hudi.client.HoodieWriteClient;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.sources.DataSourceRegister;
@@ -70,30 +73,15 @@ public class DefaultSource implements DataSourceV2, ReadSupport, WriteSupport,
   @Override
   public Optional<DataSourceWriter> createWriter(String writeUUID, StructType schema, SaveMode mode,
       DataSourceOptions options) {
-    /**
-    StructType hoodieFields = new StructType( new StructField[]{
-        DataTypes.createStructField(HoodieRecord.COMMIT_TIME_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.COMMIT_SEQNO_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.RECORD_KEY_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.PARTITION_PATH_METADATA_FIELD, DataTypes.StringType, true),
-        DataTypes.createStructField(HoodieRecord.FILENAME_METADATA_FIELD, DataTypes.StringType, true),
-    });
-    schema = hoodieFields.merge(schema);
-
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Merged Schema =" + schema);
-    }
-     **/
-
-    String instantTime = HoodieActiveTimeline.createNewInstantTime();
+    String instantTime = options.get(DataSourceWriteOptions.INSTANT_TIME()).get();
     Map<String, String> paramsWithDefaults = HoodieWriterUtils.javaParametersWithWriteDefaults(options.asMap());
     Properties props = new Properties();
     props.putAll(paramsWithDefaults);
     String path = options.get("path").get();
     String tblName = options.get(HoodieWriteConfig.TABLE_NAME).get();
     HoodieWriteConfig config = DataSourceUtils.createHoodieConfig(null, path, tblName, options.asMap());
-    HoodieTableMetaClient metaClient = new HoodieTableMetaClient(getConfiguration(), config.getBasePath());
-    return Optional.of(new HoodieDataSourceInternalWriter(instantTime, metaClient, config, schema));
+    return Optional.of(new HoodieDataSourceInternalWriter(instantTime, config, schema, getSparkSession(),
+            getConfiguration()));
   }
 
   private SparkSession getSparkSession() {

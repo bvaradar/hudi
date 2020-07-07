@@ -123,7 +123,8 @@ private[hudi] object HoodieSparkSqlWriter {
             mapAsJavaMap(parameters))
 
           val hoodieDF = HoodieDatasetBulkInsertHelper.prepareHoodieDatasetForBulkInsert(sqlContext, writeConfig, df, structName, nameSpace)
-          hoodieDF.write.format("org.apache.hudi.internal").options(parameters).save()
+          hoodieDF.write.format("org.apache.hudi.internal").option(INSTANT_TIME, instantTime)
+            .options(parameters).save()
         }
         (true, common.util.Option.ofNullable(instantTime))
       } else {

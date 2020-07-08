@@ -340,6 +340,10 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
     return Integer.parseInt(props.getProperty(HoodieCompactionConfig.COMMITS_ARCHIVAL_BATCH_SIZE_PROP));
   }
 
+  public Boolean getCleanBootstrapSourceFileEnabled() {
+    return Boolean.parseBoolean(props.getProperty(HoodieCompactionConfig.CLEAN_BOOTSTRAP_SOURCE_FILE_ENABLED));
+  }
+
   /**
    * index properties.
    */

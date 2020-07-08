@@ -23,8 +23,15 @@ import org.apache.hudi.avro.model.HoodieActionInstant;
 import org.apache.hudi.avro.model.HoodieCleanMetadata;
 import org.apache.hudi.avro.model.HoodieCleanerPlan;
 import org.apache.hudi.avro.model.HoodieCompactionPlan;
+import org.apache.hudi.avro.model.HoodieFSPermission;
+import org.apache.hudi.avro.model.HoodieFileStatus;
+import org.apache.hudi.avro.model.HoodiePath;
 import org.apache.hudi.common.HoodieCleanStat;
+import org.apache.hudi.common.bootstrap.index.BootstrapIndex;
+import org.apache.hudi.common.bootstrap.index.BootstrapIndex.IndexWriter;
+import org.apache.hudi.common.bootstrap.index.HFileBasedBootstrapIndex;
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.model.BootstrapSourceFileMapping;
 import org.apache.hudi.common.model.FileSlice;
 import org.apache.hudi.common.model.HoodieAvroPayload;
 import org.apache.hudi.common.model.HoodieCleaningPolicy;
@@ -65,6 +72,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.util.StringUtils;
 
 import java.io.ByteArrayInputStream;
@@ -91,6 +99,7 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -479,5 +488,42 @@ public class HoodieTestUtils {
       writeStatList.add(writeStat);
     }
     return writeStatList;
+  }
+
+  public static Map<String, List<BootstrapSourceFileMapping>> generateBootstrapIndex(HoodieTableMetaClient metaClient,
+      String sourceBasePath, String[] partitions, int numEntriesPerPartition) {
+    Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping =
+        generateBootstrapMapping(sourceBasePath, partitions, numEntriesPerPartition);
+    BootstrapIndex index = new HFileBasedBootstrapIndex(metaClient);
+    try (IndexWriter writer = index.createWriter(sourceBasePath)) {
+      writer.begin();
+      bootstrapMapping.entrySet().stream().forEach(e -> writer.appendNextPartition(e.getKey(), e.getValue()));
+      writer.finish();
+    }
+    return bootstrapMapping;
+  }
+
+  private static Map<String, List<BootstrapSourceFileMapping>> generateBootstrapMapping(String sourceBasePath,
+      String[] partitions, int numEntriesPerPartition) {
+    return Arrays.stream(partitions).map(partition -> {
+      return Pair.of(partition, IntStream.range(0, numEntriesPerPartition).mapToObj(idx -> {
+        String hudiFileId = UUID.randomUUID().toString();
+        System.out.println(" hudiFileId :" + hudiFileId + ", partition :" + partition);
+        String sourceFileName = idx + ".parquet";
+        HoodieFileStatus sourceFileStatus = HoodieFileStatus.newBuilder()
+            .setPath(HoodiePath.newBuilder().setUri(sourceBasePath + "/" + partition + "/" + sourceFileName).build())
+            .setLength(256 * 1024 * 1024L)
+            .setAccessTime(new Date().getTime())
+            .setModificationTime(new Date().getTime() + 99999)
+            .setBlockReplication(2)
+            .setOwner("hudi")
+            .setGroup("hudi")
+            .setBlockSize(128 * 1024 * 1024L)
+            .setPermission(HoodieFSPermission.newBuilder().setUserAction(FsAction.ALL.name())
+            .setGroupAction(FsAction.READ.name()).setOtherAction(FsAction.NONE.name()).setStickyBit(true).build())
+            .build();
+        return new BootstrapSourceFileMapping(sourceBasePath, partition, partition, sourceFileStatus, hudiFileId);
+      }).collect(Collectors.toList()));
+    }).collect(Collectors.toMap(Pair::getKey, Pair::getValue));
   }
 }

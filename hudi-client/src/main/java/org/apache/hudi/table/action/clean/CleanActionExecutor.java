@@ -24,7 +24,6 @@ import org.apache.hudi.avro.model.HoodieActionInstant;
 import org.apache.hudi.avro.model.HoodieCleanMetadata;
 import org.apache.hudi.avro.model.HoodieCleanerPlan;
 import org.apache.hudi.common.HoodieCleanStat;
-import org.apache.hudi.common.fs.FSUtils;
 import org.apache.hudi.common.model.HoodieCleaningPolicy;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
@@ -101,13 +100,11 @@ public class CleanActionExecutor extends BaseActionExecutor<HoodieCleanMetadata>
       Map<String, PartitionCleanStat> partitionCleanStatMap = new HashMap<>();
 
       FileSystem fs = table.getMetaClient().getFs();
-      Path basePath = new Path(table.getMetaClient().getBasePath());
       while (iter.hasNext()) {
         Tuple2<String, String> partitionDelFileTuple = iter.next();
         String partitionPath = partitionDelFileTuple._1();
-        String delFileName = partitionDelFileTuple._2();
-        Path deletePath = FSUtils.getPartitionPath(FSUtils.getPartitionPath(basePath, partitionPath), delFileName);
-        String deletePathStr = deletePath.toString();
+        String deletePathStr = partitionDelFileTuple._2();
+        Path deletePath = new Path(deletePathStr);
         Boolean deletedFileResult = deleteFileAndGetResult(fs, deletePathStr);
         if (!partitionCleanStatMap.containsKey(partitionPath)) {
           partitionCleanStatMap.put(partitionPath, new PartitionCleanStat(partitionPath));

@@ -18,32 +18,22 @@
 
 package org.apache.hudi.common.bootstrap;
 
-import org.apache.hudi.avro.model.HoodieFSPermission;
-import org.apache.hudi.avro.model.HoodieFileStatus;
-import org.apache.hudi.avro.model.HoodiePath;
 import org.apache.hudi.common.bootstrap.index.BootstrapIndex;
-import org.apache.hudi.common.bootstrap.index.BootstrapIndex.IndexWriter;
 import org.apache.hudi.common.bootstrap.index.HFileBasedBootstrapIndex;
 import org.apache.hudi.common.model.BootstrapSourceFileMapping;
 import org.apache.hudi.common.model.HoodieFileGroupId;
 import org.apache.hudi.common.testutils.HoodieCommonTestHarness;
-import org.apache.hudi.common.util.collection.Pair;
-
-import org.apache.hadoop.fs.permission.FsAction;
+import org.apache.hudi.common.testutils.HoodieTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,7 +73,8 @@ public class TestBootstrapIndex extends HoodieCommonTestHarness {
 
   @Test
   public void testBootstrapIndexConcurrent() throws Exception {
-    Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping  = generateBootstrapIndex(100);
+    Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping =
+        HoodieTestUtils.generateBootstrapIndex(metaClient, SOURCE_BASE_PATH, PARTITIONS, 100);
     final int numThreads = 20;
     final int numRequestsPerThread = 50;
     ExecutorService service = Executors.newFixedThreadPool(numThreads);
@@ -108,20 +99,9 @@ public class TestBootstrapIndex extends HoodieCommonTestHarness {
   }
 
   private void testBootstrapIndexOneRound(int numEntriesPerPartition) throws IOException {
-    Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping = generateBootstrapIndex(numEntriesPerPartition);
+    Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping =
+        HoodieTestUtils.generateBootstrapIndex(metaClient, SOURCE_BASE_PATH, PARTITIONS, numEntriesPerPartition);
     validateBootstrapIndex(bootstrapMapping);
-  }
-
-  private Map<String, List<BootstrapSourceFileMapping>> generateBootstrapIndex(int numEntriesPerPartition)
-      throws IOException {
-    Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping = generateBootstrapMapping(numEntriesPerPartition);
-    BootstrapIndex index = new HFileBasedBootstrapIndex(metaClient);
-    try (IndexWriter writer = index.createWriter(SOURCE_BASE_PATH)) {
-      writer.begin();
-      bootstrapMapping.entrySet().stream().forEach(e -> writer.appendNextPartition(e.getKey(), e.getValue()));
-      writer.finish();
-    }
-    return bootstrapMapping;
   }
 
   private void validateBootstrapIndex(Map<String, List<BootstrapSourceFileMapping>> bootstrapMapping) {
@@ -154,28 +134,5 @@ public class TestBootstrapIndex extends HoodieCommonTestHarness {
         });
       });
     }
-  }
-
-  private Map<String, List<BootstrapSourceFileMapping>> generateBootstrapMapping(int numEntriesPerPartition) {
-    return Arrays.stream(PARTITIONS).map(partition -> {
-      return Pair.of(partition, IntStream.range(0, numEntriesPerPartition).mapToObj(idx -> {
-        String hudiFileId = UUID.randomUUID().toString();
-        System.out.println(" hudiFileId :" + hudiFileId + ", partition :" + partition);
-        String sourceFileName = idx + ".parquet";
-        HoodieFileStatus sourceFileStatus = HoodieFileStatus.newBuilder()
-            .setPath(HoodiePath.newBuilder().setUri(SOURCE_BASE_PATH + "/" + partition + "/" + sourceFileName).build())
-            .setLength(256 * 1024 * 1024L)
-            .setAccessTime(new Date().getTime())
-            .setModificationTime(new Date().getTime() + 99999)
-            .setBlockReplication(2)
-            .setOwner("hudi")
-            .setGroup("hudi")
-            .setBlockSize(128 * 1024 * 1024L)
-            .setPermission(HoodieFSPermission.newBuilder().setUserAction(FsAction.ALL.name())
-                .setGroupAction(FsAction.READ.name()).setOtherAction(FsAction.NONE.name()).setStickyBit(true).build())
-            .build();
-        return new BootstrapSourceFileMapping(SOURCE_BASE_PATH, partition, partition, sourceFileStatus, hudiFileId);
-      }).collect(Collectors.toList()));
-    }).collect(Collectors.toMap(Pair::getKey, Pair::getValue));
   }
 }

@@ -42,6 +42,6 @@ public class HoodieDataInternalWriterFactory implements DataWriterFactory<Intern
 
   @Override
   public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
-    return new HoodieDataInternalWriter(metaClient, writeConfig, instantTime, partitionId, taskId, epochId, structType);
+    return new HoodieBulkInsertDataInternalWriter(metaClient, writeConfig, instantTime, partitionId, taskId, epochId, structType);
   }
 }

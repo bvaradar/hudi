@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hudi.internal;
+package org.apache.hudi.client.model;
 
 import org.apache.hudi.common.model.HoodieRecord;
 import org.apache.spark.sql.catalyst.InternalRow;

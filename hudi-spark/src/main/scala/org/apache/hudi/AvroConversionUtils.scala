@@ -22,6 +22,7 @@ import org.apache.hudi.common.model.HoodieKey
 import org.apache.avro.Schema
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.avro.SchemaConverters
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SparkSession}
@@ -57,15 +58,41 @@ object AvroConversionUtils {
     if (rdd.isEmpty()) {
       ss.emptyDataFrame
     } else {
-      ss.createDataFrame(rdd.mapPartitions { records =>
+      val mappedParts = rdd.mapPartitions { records =>
         if (records.isEmpty) Iterator.empty
         else {
           val schema = new Schema.Parser().parse(schemaStr)
           val dataType = convertAvroSchemaToStructType(schema)
           val convertor = AvroConversionHelper.createConverterToRow(schema, dataType)
-          records.map { x => convertor(x).asInstanceOf[Row] }
+          records.map { x =>
+          {
+            println("Rec 111 : "+ x)
+            val toReturn = convertor(x).asInstanceOf[Row]
+            println("Returning " + toReturn +" schema "+ toReturn.schema +" for inout rec "+ x)
+            toReturn
+          }}
         }
-      }, convertAvroSchemaToStructType(new Schema.Parser().parse(schemaStr)))
+      }
+      val rows1 = mappedParts.toJavaRDD().collect()
+      println("instance of Internal Row " + (rows1.get(0)));
+      println("Schema "+ rows1.get(0).schema)
+      ss.createDataFrame(mappedParts, convertAvroSchemaToStructType(new Schema.Parser().parse(schemaStr)))
+
+      /*ss.createDataFrame(rdd.mapPartitions { records =>
+        if (records.isEmpty) Iterator.empty
+        else {
+          val schema = new Schema.Parser().parse(schemaStr)
+          val dataType = convertAvroSchemaToStructType(schema)
+          val convertor = AvroConversionHelper.createConverterToRow(schema, dataType)
+          records.map { x =>
+          {
+            println("Rec 111 : "+ x)
+            val toReturn = convertor(x).asInstanceOf[Row]
+            println("Returning " + toReturn +" schema "+ toReturn.schema +" for inout rec "+ x)
+            toReturn
+          }}
+        }
+      }, convertAvroSchemaToStructType(new Schema.Parser().parse(schemaStr)))*/
     }
   }
 

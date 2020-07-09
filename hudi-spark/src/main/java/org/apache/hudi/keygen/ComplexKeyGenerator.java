@@ -27,7 +27,6 @@ import org.apache.hudi.exception.HoodieKeyException;
 import org.apache.avro.generic.GenericRecord;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.spark.sql.Row;
 
@@ -35,12 +34,6 @@ import org.apache.spark.sql.Row;
  * Complex key generator, which takes names of fields to be used for recordKey and partitionPath as configs.
  */
 public class ComplexKeyGenerator extends KeyGenerator {
-
-  private static final String DEFAULT_PARTITION_PATH = "default";
-  private static final String DEFAULT_PARTITION_PATH_SEPARATOR = "/";
-
-  protected static final String NULL_RECORDKEY_PLACEHOLDER = "__null__";
-  protected static final String EMPTY_RECORDKEY_PLACEHOLDER = "__empty__";
 
   protected final boolean hiveStylePartitioning;
 
@@ -96,11 +89,11 @@ public class ComplexKeyGenerator extends KeyGenerator {
   }
 
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), true);
   }
 
   public String getPartitionPathFromRow(Row row) {
-    return RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(), getRowPartitionPathFieldsPos(),
-        hiveStylePartitioning);
+    return RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(),
+        hiveStylePartitioning, getPartitionPathPositions());
   }
 }

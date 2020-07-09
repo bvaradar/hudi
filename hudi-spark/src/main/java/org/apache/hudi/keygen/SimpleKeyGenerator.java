@@ -34,8 +34,6 @@ import java.util.Arrays;
  */
 public class SimpleKeyGenerator extends KeyGenerator {
 
-  private static final String DEFAULT_PARTITION_PATH = "default";
-
   @Deprecated
   protected final String recordKeyField;
 
@@ -78,11 +76,11 @@ public class SimpleKeyGenerator extends KeyGenerator {
   }
 
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), false);
   }
 
   public String getPartitionPathFromRow(Row row) {
-    return RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(), getRowPartitionPathFieldsPos(),
-        hiveStylePartitioning);
+    return RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(),
+        hiveStylePartitioning, getPartitionPathPositions());
   }
 }

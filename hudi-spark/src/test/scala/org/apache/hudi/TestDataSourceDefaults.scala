@@ -23,8 +23,10 @@ import org.apache.hudi.common.model.{EmptyHoodieRecordPayload, OverwriteWithLate
 import org.apache.hudi.common.testutils.SchemaTestUtil
 import org.apache.hudi.common.util.Option
 import org.apache.hudi.exception.{HoodieException, HoodieKeyException}
-import org.apache.hudi.keygen.{ComplexKeyGenerator, GlobalDeleteKeyGenerator, SimpleKeyGenerator}
+import org.apache.hudi.keygen.{ComplexKeyGenerator, GlobalDeleteKeyGenerator, RowKeyGeneratorHelper, SimpleKeyGenerator}
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{BeforeEach, Test}
 import org.scalatest.Assertions.fail
@@ -37,16 +39,25 @@ class TestDataSourceDefaults {
   val schema = SchemaTestUtil.getComplexEvolvedSchema
   val structType = AvroConversionUtils.convertAvroSchemaToStructType(schema)
   var baseRecord: GenericRecord = _
-  var baseRow : Row = _
+  var baseRow: Row = _
+  var baseRowInternal: InternalRow = _
 
   @BeforeEach def initialize(): Unit = {
     baseRecord = SchemaTestUtil
       .generateAvroRecordFromJson(schema, 1, "001", "f1")
-    baseRow = AvroConversionHelper.createConverterToRow(schema, structType).apply(baseRecord).asInstanceOf[Row]
+    val convertor = AvroConversionHelper.createConverterToRow(schema, structType)
+    baseRow = convertor.apply(baseRecord).asInstanceOf[Row]
+    //baseRowInternal = InternalRow.fromSeq(Seq(baseRow))
+    //baseRow = getRowFromGenericRecord(baseRecord)
+    // AvroConversionHelper.createConverterToRow(schema, structType).apply(baseRecord).asInstanceOf[Row]
   }
 
   private def getRowFromGenericRecord(genRec: GenericRecord): Row = {
-    AvroConversionHelper.createConverterToRow(schema, structType).apply(genRec).asInstanceOf[Row]
+    //AvroToRowConverter.avroToRowConverter(genRec)
+
+    val convertor = AvroConversionHelper.createConverterToRow(schema, structType)
+    val toReturn = convertor.apply(baseRecord).asInstanceOf[Row]
+    toReturn
   }
 
   private def getKeyConfig(recordKeyFieldName: String, partitionPathField: String, hiveStylePartitioning: String): TypedProperties = {
@@ -58,10 +69,42 @@ class TestDataSourceDefaults {
   }
 
   @Test def testSimpleKeyGenerator() = {
+
+    val encoder = RowEncoder(structType)
+    baseRowInternal = encoder.toRow(baseRow)
+    baseRow = encoder.fromRow(baseRowInternal)
+
+    println("Base row schema " + baseRow.schema)
+    val testStructName = "testStructName"
+    val testNamespace = "testNamespace"
     // top level, valid fields
     val hk1 = new SimpleKeyGenerator(getKeyConfig("field1", "name", "false")).getKey(baseRecord)
     assertEquals("field1", hk1.getRecordKey)
     assertEquals("name1", hk1.getPartitionPath)
+
+    baseRow = getRowFromGenericRecord(baseRecord)
+    val postitions = RowKeyGeneratorHelper.getNestedFieldIndices(structType, "testNestedRecord.userId", true);
+    println(" " + RowKeyGeneratorHelper.getNestedFieldVal(baseRow, postitions));
+
+    try {
+      val props = getKeyConfig("testNestedRecord.userId", "name", "false")
+      val keyGen = new SimpleKeyGenerator(props)
+      keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+      println("RecKey " + keyGen.getRecordKeyFromRow(baseRow))
+    } catch {
+      case e: IllegalArgumentException =>
+      // do nothing
+    }
+
+    try {
+      val props = getKeyConfig("name", "testNestedRecord.userId", "false")
+      val keyGen = new SimpleKeyGenerator(props)
+      keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+      println("PP " + keyGen.getPartitionPathFromRow(baseRow))
+    } catch {
+      case e: IllegalArgumentException =>
+      // do nothing
+    }
 
     // partition path field not specified
     try {
@@ -71,7 +114,20 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: IllegalArgumentException =>
-        // do nothing
+      // do nothing
+    }
+
+    // partition path field not specified using Row
+    try {
+      val props = new TypedProperties()
+      props.setProperty(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "field1")
+      val keyGen = new SimpleKeyGenerator(props)
+      keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+      keyGen.getRecordKeyFromRow(baseRow)
+      fail("Should have errored out")
+    } catch {
+      case e: IllegalArgumentException =>
+      // do nothing
     }
 
     // recordkey field not specified
@@ -82,7 +138,20 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: IllegalArgumentException =>
-        // do nothing
+      // do nothing
+    }
+
+    // recordkey field not specified using Row
+    try {
+      val props = new TypedProperties()
+      props.setProperty(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY, "partitionField")
+      val keyGen = new SimpleKeyGenerator(props)
+      keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+      keyGen.getPartitionPathFromRow(baseRow)
+      fail("Should have errored out")
+    } catch {
+      case e: IllegalArgumentException =>
+      // do nothing
     }
 
     // nested field as record key and partition path
@@ -98,7 +167,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: HoodieException =>
-        // do nothing
+      // do nothing
     }
 
     // if partition path can't be found, return default partition path
@@ -106,9 +175,24 @@ class TestDataSourceDefaults {
       .getKey(baseRecord)
     assertEquals("default", hk3.getPartitionPath)
 
+    // if partition path can't be found, return default partition path using row
+    var keyGen = new SimpleKeyGenerator(getKeyConfig("testNestedRecord.userId", "testNestedRecord.notThere", "false"))
+    keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+    println("base row schema 111 " + baseRow.schema)
+    val hk3_row = keyGen.getPartitionPathFromRow(baseRow)
+    assertEquals("default", hk3_row)
+
     // if enable hive style partitioning
     val hk4 = new SimpleKeyGenerator(getKeyConfig("field1", "name", "true")).getKey(baseRecord)
     assertEquals("name=name1", hk4.getPartitionPath)
+
+    // if enable hive style partitioning using row
+    keyGen = new SimpleKeyGenerator(getKeyConfig("field1", "name", "true"))
+    keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+    println("base row schema " + baseRow.schema)
+    //println("base row schema to string "+ baseRow.schema.toString())
+    val hk4_row = keyGen.getPartitionPathFromRow(baseRow)
+    assertEquals("name=name1", hk4_row)
 
     // if partition is null, return default partition path
     baseRecord.put("name", "")
@@ -116,11 +200,25 @@ class TestDataSourceDefaults {
       .getKey(baseRecord)
     assertEquals("default", hk5.getPartitionPath)
 
+    // if partition is null, return default partition path using Row
+    keyGen = new SimpleKeyGenerator(getKeyConfig("field1", "name", "false"))
+    keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+    baseRow = getRowFromGenericRecord(baseRecord)
+    val hk5_row = keyGen.getRecordKeyFromRow(baseRow)
+    assertEquals("default", hk5_row)
+
     // if partition is empty, return default partition path
     baseRecord.put("name", null)
     val hk6 = new SimpleKeyGenerator(getKeyConfig("field1", "name", "false"))
       .getKey(baseRecord)
     assertEquals("default", hk6.getPartitionPath)
+
+    // if partition is empty, return default partition path using Row
+    keyGen = new SimpleKeyGenerator(getKeyConfig("field1", "name", "false"))
+    keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+    baseRow = getRowFromGenericRecord(baseRecord)
+    val hk6_row = keyGen.getRecordKeyFromRow(baseRow)
+    assertEquals("default", hk6_row)
 
     // if record key is empty, throw error
     try {
@@ -132,7 +230,22 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: HoodieKeyException =>
-        // do nothing
+      // do nothing
+    }
+
+    // if record key is empty, throw error. Using Row
+    try {
+      val props = new TypedProperties()
+      props.setProperty(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "field1")
+      props.setProperty(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY, "name")
+      keyGen = new SimpleKeyGenerator(props)
+      keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+      baseRow = getRowFromGenericRecord(baseRecord)
+      keyGen.getRecordKeyFromRow(baseRow)
+      fail("Should have errored out")
+    } catch {
+      case e: HoodieKeyException =>
+      // do nothing
     }
 
     // if record key is null, throw error
@@ -145,7 +258,22 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: HoodieKeyException =>
-        // do nothing
+      // do nothing
+    }
+
+    // if record key is null, throw error. Using Row
+    try {
+      val props = new TypedProperties()
+      props.setProperty(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "field1")
+      props.setProperty(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY, "name")
+      keyGen = new SimpleKeyGenerator(props)
+      keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
+      baseRow = getRowFromGenericRecord(baseRecord)
+      keyGen.getRecordKeyFromRow(baseRow)
+      fail("Should have errored out")
+    } catch {
+      case e: HoodieKeyException =>
+      // do nothing
     }
   }
 
@@ -163,7 +291,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: IllegalArgumentException =>
-        // do nothing
+      // do nothing
     }
 
     // recordkey field not specified
@@ -174,7 +302,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: IllegalArgumentException =>
-        // do nothing
+      // do nothing
     }
 
     // nested field as record key and partition path
@@ -190,7 +318,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: HoodieException =>
-        // do nothing
+      // do nothing
     }
 
     // if partition path can't be found, return default partition path
@@ -226,7 +354,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: HoodieKeyException =>
-        // do nothing
+      // do nothing
     }
 
     // reset name and field1 values.
@@ -274,7 +402,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: IllegalArgumentException =>
-        // do nothing
+      // do nothing
     }
 
     // Nested record key not found
@@ -284,7 +412,7 @@ class TestDataSourceDefaults {
       fail("Should have errored out")
     } catch {
       case e: HoodieException =>
-        // do nothing
+      // do nothing
     }
 
     // if all parts of the composite record key are null/empty, throw error

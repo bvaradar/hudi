@@ -46,7 +46,7 @@ public class NonpartitionedKeyGenerator extends SimpleKeyGenerator {
     return new HoodieKey(recordKey, EMPTY_PARTITION);
   }
 
-  public String getRecordKeyFromRow(Row row){
+  public String getRecordKeyFromRow(Row row) {
     return super.getRecordKeyFromRow(row);
   }
 

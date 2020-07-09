@@ -31,7 +31,6 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.sql.Row;
 
 import java.io.Serializable;
-import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -164,16 +163,17 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
   }
 
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyFieldsPos());
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), false);
   }
 
   public String getPartitionPathFromRow(Row row) {
     Object fieldVal = null;
+    String partitionPathFieldVal = RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(), hiveStylePartitioning, getPartitionPathPositions());
     try {
-      if (row.isNullAt(getRowPartitionPathFieldsPos().get(0))) {
+      if (partitionPathFieldVal.contains(DEFAULT_PARTITION_PATH) || partitionPathFieldVal.contains(NULL_RECORDKEY_PLACEHOLDER) || partitionPathFieldVal.contains(EMPTY_RECORDKEY_PLACEHOLDER)) {
         fieldVal = 1L;
       } else {
-        fieldVal = row.get(getRowPartitionPathFieldsPos().get(0));
+        fieldVal = partitionPathFieldVal;
       }
       return getPartitionPath(fieldVal);
     } catch (ParseException e) {

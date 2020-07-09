@@ -30,8 +30,10 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 import scala.Function1;
 
@@ -40,15 +42,21 @@ import scala.Function1;
  */
 public abstract class KeyGenerator implements Serializable {
 
+  protected static final String DEFAULT_PARTITION_PATH = "default";
+  protected static final String NULL_RECORDKEY_PLACEHOLDER = "__null__";
+  protected static final String EMPTY_RECORDKEY_PLACEHOLDER = "__empty__";
+  protected static final String DEFAULT_PARTITION_PATH_SEPARATOR = "/";
+
   protected static final Logger LOG = LogManager.getLogger(KeyGenerator.class);
 
   protected transient TypedProperties config;
 
   private List<String> recordKeyFields;
   private List<String> partitionPathFields;
-  private List<Integer> rowKeyFieldsPos;
-  private List<Integer> rowPartitionPathFieldsPos;
+  private Map<String, List<Integer>> rowKeyPositions = new HashMap<>();
+  private Map<String, List<Integer>> partitionPathPositions = new HashMap<>();
   private Function1<Object, Object> converterFn = null;
+  protected StructType structType;
 
   protected KeyGenerator(TypedProperties config) {
     this.config = config;
@@ -60,13 +68,25 @@ public abstract class KeyGenerator implements Serializable {
   public abstract HoodieKey getKey(GenericRecord record);
 
   public void initializeRowKeyGenerator(StructType structType, String structName, String recordNamespace) {
-    this.rowKeyFieldsPos = getRecordKeyFields().stream()
-        .map(f -> (Integer) (structType.getFieldIndex(f).get()))
-        .collect(Collectors.toList());
-    this.rowPartitionPathFieldsPos = getPartitionPathFields().stream()
+    // parse simple feilds
+    getRecordKeyFields().stream()
+        .filter(f -> !(f.contains(".")))
+        .forEach(f -> rowKeyPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
+    // parse nested fields
+    getRecordKeyFields().stream()
+        .filter(f -> f.contains("."))
+        .forEach(f -> rowKeyPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, true)));
+    // parse simple fields
+    getPartitionPathFields().stream()
         .filter(f -> !f.isEmpty())
-        .map(f -> (Integer) (structType.getFieldIndex(f).get()))
-        .collect(Collectors.toList());
+        .filter(f -> !(f.contains(".")))
+        .forEach(f -> partitionPathPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
+    // parse nested fields
+    getPartitionPathFields().stream()
+        .filter(f -> !f.isEmpty())
+        .filter(f -> f.contains("."))
+        .forEach(f -> partitionPathPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, false)));
+    this.structType = structType;
     converterFn = AvroConversionHelper.createConverterToAvro(structType, structName, recordNamespace);
   }
 
@@ -98,19 +118,11 @@ public abstract class KeyGenerator implements Serializable {
     this.partitionPathFields = partitionPathFields;
   }
 
-  protected List<Integer> getRowKeyFieldsPos() {
-    return rowKeyFieldsPos;
+  protected Map<String, List<Integer>> getRowKeyPositions() {
+    return rowKeyPositions;
   }
 
-  protected void setRowKeyFieldsPos(List<Integer> rowKeyFieldsPos) {
-    this.rowKeyFieldsPos = rowKeyFieldsPos;
-  }
-
-  protected List<Integer> getRowPartitionPathFieldsPos() {
-    return rowPartitionPathFieldsPos;
-  }
-
-  protected void setRowPartitionPathFieldsPos(List<Integer> rowPartitionPathFieldsPos) {
-    this.rowPartitionPathFieldsPos = rowPartitionPathFieldsPos;
+  protected Map<String, List<Integer>> getPartitionPathPositions() {
+    return partitionPathPositions;
   }
 }

@@ -20,36 +20,53 @@ package org.apache.hudi.keygen;
 
 import org.apache.hudi.exception.HoodieKeyException;
 
+import org.apache.avro.generic.GenericRecord;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import scala.Option;
+
+import static org.apache.hudi.keygen.KeyGenerator.DEFAULT_PARTITION_PATH;
+import static org.apache.hudi.keygen.KeyGenerator.DEFAULT_PARTITION_PATH_SEPARATOR;
+import static org.apache.hudi.keygen.KeyGenerator.EMPTY_RECORDKEY_PLACEHOLDER;
+import static org.apache.hudi.keygen.KeyGenerator.NULL_RECORDKEY_PLACEHOLDER;
+
 public class RowKeyGeneratorHelper {
 
-  private static final String DEFAULT_PARTITION_PATH = "default";
-  private static final String DEFAULT_PARTITION_PATH_SEPARATOR = "/";
-
-  protected static final String NULL_RECORDKEY_PLACEHOLDER = "__null__";
-  protected static final String EMPTY_RECORDKEY_PLACEHOLDER = "__empty__";
-
-  public static String getRecordKeyFromRow(Row row, List<String> recordKeyFields, List<Integer> recordKeyFieldsPos) {
+  public static String getRecordKeyFromRow(Row row, List<String> recordKeyFields, Map<String, List<Integer>> nestedRowKeyPositions, boolean prefixFieldName) {
     AtomicBoolean keyIsNullOrEmpty = new AtomicBoolean(true);
     String toReturn = IntStream.range(0, recordKeyFields.size()).mapToObj(idx -> {
       String field = recordKeyFields.get(idx);
-      Integer fieldPos = recordKeyFieldsPos.get(idx);
-      if (row.isNullAt(fieldPos)) {
-        return fieldPos + ":" + NULL_RECORDKEY_PLACEHOLDER;
+      String val = null;
+      List<Integer> fieldPositions = nestedRowKeyPositions.get(field);
+      if (fieldPositions.size() == 1) { // simple field
+        Integer fieldPos = fieldPositions.get(0);
+        if (row.isNullAt(fieldPos)) {
+          throw new HoodieKeyException("recordKey value: for field: \"" + field + "\" cannot be null");
+        }
+        val = row.getAs(field).toString();
+        if (val.isEmpty()) {
+          throw new HoodieKeyException("recordKey value: for field: \"" + field + "\" cannot be empty");
+        }
+        keyIsNullOrEmpty.set(true);
+      } else { // nested fields
+        val = getNestedFieldVal(row, nestedRowKeyPositions.get(field));
+        if (!val.contains(NULL_RECORDKEY_PLACEHOLDER) && !val.contains(EMPTY_RECORDKEY_PLACEHOLDER)) {
+          keyIsNullOrEmpty.set(false);
+        }
+        val = prefixFieldName ? (field + ":" + val): val;
       }
-      String val = row.getAs(field).toString();
-      if (val.isEmpty()) {
-        return fieldPos + ":" + EMPTY_RECORDKEY_PLACEHOLDER;
-      }
-      keyIsNullOrEmpty.set(false);
-      return fieldPos + ":" + val;
+      return val;
     }).collect(Collectors.joining(","));
     if (keyIsNullOrEmpty.get()) {
       throw new HoodieKeyException("recordKey value: \"" + toReturn + "\" for fields: \"" + Arrays.toString(recordKeyFields.toArray()) + "\" cannot be null or empty.");
@@ -57,21 +74,110 @@ public class RowKeyGeneratorHelper {
     return toReturn;
   }
 
-  public static String getPartitionPathFromRow(Row row, List<String> partitionPathFields,
-      List<Integer> partitionPathFieldsPos, boolean hiveStylePartitioning) {
+  public static String getPartitionPathFromRow(Row row, List<String> partitionPathFields, boolean hiveStylePartitioning, Map<String, List<Integer>> nestedPartitionPathPositions) {
     return IntStream.range(0, partitionPathFields.size()).mapToObj(idx -> {
       String field = partitionPathFields.get(idx);
-      Integer fieldPos = partitionPathFieldsPos.get(idx);
-      if (row.isNullAt(fieldPos)) {
-        return hiveStylePartitioning ? field + "=" + DEFAULT_PARTITION_PATH : DEFAULT_PARTITION_PATH;
+      String val = null;
+      List<Integer> fieldPositions = nestedPartitionPathPositions.get(field);
+      if (fieldPositions.size() == 1) { // simple
+        Integer fieldPos = fieldPositions.get(0);
+        // for partition path, if field is not found, index will be set to -1
+        if (fieldPos == -1 || row.isNullAt(fieldPos)) {
+          val = DEFAULT_PARTITION_PATH;
+        } else {
+          val = row.getAs(field).toString();
+          if (val.isEmpty()) {
+            val = DEFAULT_PARTITION_PATH;
+          }
+        }
+        if (hiveStylePartitioning) {
+          val = field + "=" + val;
+        }
+      } else { // nested
+        String nestedVal = getNestedFieldVal(row, nestedPartitionPathPositions.get(field));
+        if (nestedVal.contains(NULL_RECORDKEY_PLACEHOLDER) || nestedVal.contains(EMPTY_RECORDKEY_PLACEHOLDER)) {
+          val = hiveStylePartitioning ? field + "=" + DEFAULT_PARTITION_PATH : DEFAULT_PARTITION_PATH;
+        } else {
+          val = hiveStylePartitioning ? field + "=" + nestedVal : nestedVal;
+        }
       }
-
-      String fieldVal = row.getAs(field).toString();
-      if (fieldVal.isEmpty()) {
-        return hiveStylePartitioning ? field + "=" + DEFAULT_PARTITION_PATH : DEFAULT_PARTITION_PATH;
-      }
-
-      return hiveStylePartitioning ? field + "=" + fieldVal : fieldVal;
+      return val;
     }).collect(Collectors.joining(DEFAULT_PARTITION_PATH_SEPARATOR));
   }
+
+  public static String getNestedFieldVal(Row row, List<Integer> positions) {
+    if (positions.size() == 1 && positions.get(0) == -1) {
+      return DEFAULT_PARTITION_PATH;
+    }
+    int index = 0;
+    int totalCount = positions.size();
+    Row valueToProcess = row;
+    String toReturn = null;
+
+    while (index < totalCount) {
+      if (index < totalCount - 1) {
+        if (valueToProcess.isNullAt(positions.get(index))) {
+          toReturn = NULL_RECORDKEY_PLACEHOLDER;
+          break;
+        }
+
+        // Row curField = valueToProcess.getAs(positions.get(index));
+        int ind = positions.get(index);
+        //valueToProcess = valueToProcess.getStruct(positions.get(index));
+        if( valueToProcess.get(ind) instanceof GenericRecord){
+          System.out.println("Gen record ::: " + valueToProcess.get(ind));
+        }
+        GenericRecord genRec = (GenericRecord) valueToProcess.get(positions.get(index));
+
+        Row curField = (Row) valueToProcess.get(positions.get(index));
+        valueToProcess = (Row) curField;
+      } else { // last index
+        if (valueToProcess.getAs(positions.get(index)).toString().isEmpty()) {
+          toReturn = EMPTY_RECORDKEY_PLACEHOLDER;
+          break;
+        }
+        toReturn = valueToProcess.getAs(positions.get(index));
+      }
+      index++;
+    }
+    // TODO: null
+    return toReturn;
+  }
+
+  public static List<Integer> getNestedFieldIndices(StructType structType, String field, boolean isRecordKey) {
+    String[] slices = field.split("\\.");
+    List<Integer> positions = new ArrayList<>();
+    int index = 0;
+    int totalCount = slices.length;
+    while (index < totalCount) {
+      String slice = slices[index];
+      Option<Object> curIndexOpt = structType.getFieldIndex(slice);
+      if (curIndexOpt.isDefined()) {
+        int curIndex = (int) curIndexOpt.get();
+        positions.add(curIndex);
+        final StructField nestedField = structType.fields()[curIndex];
+        if (index < totalCount - 1) {
+          if (!(nestedField.dataType() instanceof StructType)) {
+            if (isRecordKey) {
+              throw new IllegalArgumentException("Nested field should be of type StructType " + nestedField);
+            } else {
+              positions = Collections.singletonList(-1);
+              break;
+            }
+          }
+          structType = (StructType) nestedField.dataType();
+        }
+      } else {
+        if (isRecordKey) {
+          throw new IllegalArgumentException("Can't find " + slice + " in StructType for the field " + field);
+        } else {
+          positions = Collections.singletonList(-1);
+          break;
+        }
+      }
+      index++;
+    }
+    return positions;
+  }
+
 }

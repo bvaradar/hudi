@@ -77,15 +77,17 @@ public abstract class KeyGenerator implements Serializable {
         .filter(f -> f.contains("."))
         .forEach(f -> rowKeyPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, true)));
     // parse simple fields
-    getPartitionPathFields().stream()
-        .filter(f -> !f.isEmpty())
-        .filter(f -> !(f.contains(".")))
-        .forEach(f -> partitionPathPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
-    // parse nested fields
-    getPartitionPathFields().stream()
-        .filter(f -> !f.isEmpty())
-        .filter(f -> f.contains("."))
-        .forEach(f -> partitionPathPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, false)));
+    if(getPartitionPathFields() != null) {
+      getPartitionPathFields().stream()
+          .filter(f -> !f.isEmpty())
+          .filter(f -> !(f.contains(".")))
+          .forEach(f -> partitionPathPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
+      // parse nested fields
+      getPartitionPathFields().stream()
+          .filter(f -> !f.isEmpty())
+          .filter(f -> f.contains("."))
+          .forEach(f -> partitionPathPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, false)));
+    }
     this.structType = structType;
     converterFn = AvroConversionHelper.createConverterToAvro(structType, structName, recordNamespace);
   }

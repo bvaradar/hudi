@@ -75,7 +75,7 @@ public class GlobalDeleteKeyGenerator extends KeyGenerator {
   }
 
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions());
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), true);
   }
 
   public String getPartitionPathFromRow(Row row) {

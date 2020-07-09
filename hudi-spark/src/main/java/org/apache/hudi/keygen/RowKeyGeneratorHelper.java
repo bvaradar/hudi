@@ -52,21 +52,22 @@ public class RowKeyGeneratorHelper {
       if (fieldPositions.size() == 1) { // simple field
         Integer fieldPos = fieldPositions.get(0);
         if (row.isNullAt(fieldPos)) {
-          throw new HoodieKeyException("recordKey value: for field: \"" + field + "\" cannot be null");
+          val = NULL_RECORDKEY_PLACEHOLDER;
+        } else {
+          val = row.getAs(field).toString();
+          if (val.isEmpty()) {
+            val = EMPTY_RECORDKEY_PLACEHOLDER;
+          } else {
+            keyIsNullOrEmpty.set(false);
+          }
         }
-        val = row.getAs(field).toString();
-        if (val.isEmpty()) {
-          throw new HoodieKeyException("recordKey value: for field: \"" + field + "\" cannot be empty");
-        }
-        keyIsNullOrEmpty.set(true);
       } else { // nested fields
         val = getNestedFieldVal(row, nestedRowKeyPositions.get(field));
         if (!val.contains(NULL_RECORDKEY_PLACEHOLDER) && !val.contains(EMPTY_RECORDKEY_PLACEHOLDER)) {
           keyIsNullOrEmpty.set(false);
         }
-        val = prefixFieldName ? (field + ":" + val): val;
       }
-      return val;
+      return prefixFieldName ? (field + ":" + val): val;
     }).collect(Collectors.joining(","));
     if (keyIsNullOrEmpty.get()) {
       throw new HoodieKeyException("recordKey value: \"" + toReturn + "\" for fields: \"" + Arrays.toString(recordKeyFields.toArray()) + "\" cannot be null or empty.");
@@ -124,11 +125,11 @@ public class RowKeyGeneratorHelper {
         // Row curField = valueToProcess.getAs(positions.get(index));
         int ind = positions.get(index);
         //valueToProcess = valueToProcess.getStruct(positions.get(index));
-        if( valueToProcess.get(ind) instanceof GenericRecord){
+        /*if( valueToProcess.get(ind) instanceof Row){
           System.out.println("Gen record ::: " + valueToProcess.get(ind));
         }
         GenericRecord genRec = (GenericRecord) valueToProcess.get(positions.get(index));
-
+        */
         Row curField = (Row) valueToProcess.get(positions.get(index));
         valueToProcess = (Row) curField;
       } else { // last index
@@ -136,7 +137,7 @@ public class RowKeyGeneratorHelper {
           toReturn = EMPTY_RECORDKEY_PLACEHOLDER;
           break;
         }
-        toReturn = valueToProcess.getAs(positions.get(index));
+        toReturn = valueToProcess.getAs(positions.get(index)).toString();
       }
       index++;
     }
@@ -159,7 +160,7 @@ public class RowKeyGeneratorHelper {
         if (index < totalCount - 1) {
           if (!(nestedField.dataType() instanceof StructType)) {
             if (isRecordKey) {
-              throw new IllegalArgumentException("Nested field should be of type StructType " + nestedField);
+              throw new HoodieKeyException("Nested field should be of type StructType " + nestedField);
             } else {
               positions = Collections.singletonList(-1);
               break;
@@ -169,7 +170,7 @@ public class RowKeyGeneratorHelper {
         }
       } else {
         if (isRecordKey) {
-          throw new IllegalArgumentException("Can't find " + slice + " in StructType for the field " + field);
+          throw new HoodieKeyException("Can't find " + slice + " in StructType for the field " + field);
         } else {
           positions = Collections.singletonList(-1);
           break;

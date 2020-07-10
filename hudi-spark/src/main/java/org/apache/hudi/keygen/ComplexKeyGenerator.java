@@ -89,7 +89,7 @@ public class ComplexKeyGenerator extends KeyGenerator {
   }
 
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), true);
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRecordKeyPositions(), true);
   }
 
   public String getPartitionPathFromRow(Row row) {

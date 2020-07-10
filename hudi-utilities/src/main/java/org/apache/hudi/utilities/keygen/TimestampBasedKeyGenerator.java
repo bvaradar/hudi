@@ -131,6 +131,12 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
     }
   }
 
+  /**
+   * Parse and fetch partition path based on data type
+   * @param partitionVal partition path object value fetched from record/row
+   * @return the parsed partition path based on data type
+   * @throws ParseException on any parse exception
+   */
   private String getPartitionPath(Object partitionVal) throws ParseException {
     SimpleDateFormat partitionPathFormat = new SimpleDateFormat(outputDateFormat);
     partitionPathFormat.setTimeZone(timeZone);
@@ -162,15 +168,18 @@ public class TimestampBasedKeyGenerator extends SimpleKeyGenerator {
     return MILLISECONDS.convert(partitionVal, timeUnit);
   }
 
+  @Override
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), false);
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRecordKeyPositions(), false);
   }
 
+  @Override
   public String getPartitionPathFromRow(Row row) {
     Object fieldVal = null;
-    String partitionPathFieldVal = RowKeyGeneratorHelper.getPartitionPathFromRow(row, getPartitionPathFields(), hiveStylePartitioning, getPartitionPathPositions());
+    Object partitionPathFieldVal =  RowKeyGeneratorHelper.getNestedFieldVal(row, getPartitionPathPositions().get(getPartitionPathFields().get(0)));
     try {
-      if (partitionPathFieldVal.contains(DEFAULT_PARTITION_PATH) || partitionPathFieldVal.contains(NULL_RECORDKEY_PLACEHOLDER) || partitionPathFieldVal.contains(EMPTY_RECORDKEY_PLACEHOLDER)) {
+      if (partitionPathFieldVal.toString().contains(DEFAULT_PARTITION_PATH) || partitionPathFieldVal.toString().contains(NULL_RECORDKEY_PLACEHOLDER)
+          || partitionPathFieldVal.toString().contains(EMPTY_RECORDKEY_PLACEHOLDER)) {
         fieldVal = 1L;
       } else {
         fieldVal = partitionPathFieldVal;

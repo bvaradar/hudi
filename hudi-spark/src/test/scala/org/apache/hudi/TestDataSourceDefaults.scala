@@ -23,10 +23,8 @@ import org.apache.hudi.common.model.{EmptyHoodieRecordPayload, OverwriteWithLate
 import org.apache.hudi.common.testutils.SchemaTestUtil
 import org.apache.hudi.common.util.Option
 import org.apache.hudi.exception.{HoodieException, HoodieKeyException}
-import org.apache.hudi.keygen.{ComplexKeyGenerator, GlobalDeleteKeyGenerator, RowKeyGeneratorHelper, SimpleKeyGenerator}
+import org.apache.hudi.keygen.{ComplexKeyGenerator, GlobalDeleteKeyGenerator, SimpleKeyGenerator}
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.{BeforeEach, Test}
@@ -355,7 +353,7 @@ class TestDataSourceDefaults {
     assertEquals("field1=field1/name=name1", hk4.getPartitionPath)
 
     keyGen.initializeRowKeyGenerator(structType, testStructName, testNamespace)
-    assertEquals("field1:field1,name:name1",keyGen.getRecordKeyFromRow(baseRow))
+    assertEquals("field1:field1,name:name1", keyGen.getRecordKeyFromRow(baseRow))
     assertEquals("field1=field1/name=name1", keyGen.getPartitionPathFromRow(baseRow))
 
     // if one part of the record key is empty, replace with "__empty__"

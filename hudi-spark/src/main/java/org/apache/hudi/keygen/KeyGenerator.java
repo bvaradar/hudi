@@ -53,7 +53,7 @@ public abstract class KeyGenerator implements Serializable {
 
   private List<String> recordKeyFields;
   private List<String> partitionPathFields;
-  private Map<String, List<Integer>> rowKeyPositions = new HashMap<>();
+  private Map<String, List<Integer>> recordKeyPositions = new HashMap<>();
   private Map<String, List<Integer>> partitionPathPositions = new HashMap<>();
   private Function1<Object, Object> converterFn = null;
   protected StructType structType;
@@ -71,11 +71,11 @@ public abstract class KeyGenerator implements Serializable {
     // parse simple feilds
     getRecordKeyFields().stream()
         .filter(f -> !(f.contains(".")))
-        .forEach(f -> rowKeyPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
+        .forEach(f -> recordKeyPositions.put(f, Collections.singletonList((Integer) (structType.getFieldIndex(f).get()))));
     // parse nested fields
     getRecordKeyFields().stream()
         .filter(f -> f.contains("."))
-        .forEach(f -> rowKeyPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, true)));
+        .forEach(f -> recordKeyPositions.put(f, RowKeyGeneratorHelper.getNestedFieldIndices(structType, f, true)));
     // parse simple fields
     if(getPartitionPathFields() != null) {
       getPartitionPathFields().stream()
@@ -120,8 +120,8 @@ public abstract class KeyGenerator implements Serializable {
     this.partitionPathFields = partitionPathFields;
   }
 
-  protected Map<String, List<Integer>> getRowKeyPositions() {
-    return rowKeyPositions;
+  protected Map<String, List<Integer>> getRecordKeyPositions() {
+    return recordKeyPositions;
   }
 
   protected Map<String, List<Integer>> getPartitionPathPositions() {

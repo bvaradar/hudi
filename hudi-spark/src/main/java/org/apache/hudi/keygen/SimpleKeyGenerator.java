@@ -76,7 +76,7 @@ public class SimpleKeyGenerator extends KeyGenerator {
   }
 
   public String getRecordKeyFromRow(Row row) {
-    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRowKeyPositions(), false);
+    return RowKeyGeneratorHelper.getRecordKeyFromRow(row, getRecordKeyFields(), getRecordKeyPositions(), false);
   }
 
   public String getPartitionPathFromRow(Row row) {

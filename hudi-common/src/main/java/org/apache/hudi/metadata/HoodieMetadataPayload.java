@@ -235,8 +235,8 @@ public class HoodieMetadataPayload implements HoodieRecordPayload<HoodieMetadata
               String.format("Valid %s record expected for type: %s", SCHEMA_FIELD_ID_COLUMN_STATS, METADATA_TYPE_COLUMN_STATS));
         } else {
           columnStatMetadata = HoodieMetadataColumnStats.newBuilder(METADATA_COLUMN_STATS_BUILDER_STUB.get())
-              .setFileName((String) columnStatsRecord.get(COLUMN_STATS_FIELD_FILE_NAME))
-              .setColumnName((String) columnStatsRecord.get(COLUMN_STATS_FIELD_COLUMN_NAME))
+              .setFileName(columnStatsRecord.get(COLUMN_STATS_FIELD_FILE_NAME).toString())
+              .setColumnName(columnStatsRecord.get(COLUMN_STATS_FIELD_COLUMN_NAME).toString())
               // AVRO-2377 1.9.2 Modified the type of org.apache.avro.Schema#FIELD_RESERVED to Collections.unmodifiableSet.
               // This causes Kryo to fail when deserializing a GenericRecord, See HUDI-5484.
               // We should avoid using GenericRecord and convert GenericRecord into a serializable type.

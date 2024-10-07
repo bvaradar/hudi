@@ -117,7 +117,7 @@ public class ITTestClusteringCommand extends HoodieCLIIntegrationTestBase {
     // get clustering instance
     HoodieActiveTimeline timeline = HoodieCLI.getTableMetaClient().getActiveTimeline();
     Option<String> instanceOpt =
-        timeline.filterPendingClusteringTimeline().firstInstant().map(HoodieInstant::getTimestamp);
+        timeline.filterPendingClusteringTimeline().firstInstant().map(HoodieInstant::getRequestTime);
     assertTrue(instanceOpt.isPresent(), "Must have pending clustering.");
     final String instance = instanceOpt.get();
 
@@ -133,12 +133,12 @@ public class ITTestClusteringCommand extends HoodieCLIIntegrationTestBase {
     // assert clustering complete
     assertTrue(HoodieCLI.getTableMetaClient().getActiveTimeline().reload()
         .filterCompletedInstants().getInstantsAsStream()
-        .map(HoodieInstant::getTimestamp).collect(Collectors.toList()).contains(instance),
+        .map(HoodieInstant::getRequestTime).collect(Collectors.toList()).contains(instance),
         "Pending clustering must be completed");
 
     assertTrue(HoodieCLI.getTableMetaClient().getActiveTimeline().reload()
             .getCompletedReplaceTimeline().getInstantsAsStream()
-            .map(HoodieInstant::getTimestamp).collect(Collectors.toList()).contains(instance),
+            .map(HoodieInstant::getRequestTime).collect(Collectors.toList()).contains(instance),
         "Pending clustering must be completed");
   }
 
@@ -161,7 +161,7 @@ public class ITTestClusteringCommand extends HoodieCLIIntegrationTestBase {
     // assert clustering complete
     assertTrue(HoodieCLI.getTableMetaClient().getActiveTimeline().reload()
             .getCompletedReplaceTimeline().getInstantsAsStream()
-            .map(HoodieInstant::getTimestamp).count() > 0,
+            .map(HoodieInstant::getRequestTime).count() > 0,
         "Completed clustering couldn't be 0");
   }
 

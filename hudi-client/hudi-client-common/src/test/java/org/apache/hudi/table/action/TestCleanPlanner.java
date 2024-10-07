@@ -37,10 +37,10 @@ import org.apache.hudi.common.model.HoodieWriteStat;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
-import org.apache.hudi.common.table.timeline.HoodieDefaultTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.TimelineMetadataUtils;
+import org.apache.hudi.common.table.timeline.versioning.v2.BaseTimelineV2;
 import org.apache.hudi.common.table.view.SyncableFileSystemView;
 import org.apache.hudi.common.util.ClusteringUtils;
 import org.apache.hudi.common.util.Option;
@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.apache.hudi.common.table.timeline.HoodieInstant.State.COMPLETED;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.getDefaultStorageConf;
 import static org.apache.hudi.common.util.CleanerUtils.CLEAN_METADATA_VERSION_2;
 import static org.apache.hudi.common.util.CleanerUtils.SAVEPOINTED_TIMESTAMPS;
@@ -121,7 +122,7 @@ public class TestCleanPlanner {
       HoodieActiveTimeline activeTimeline = mock(HoodieActiveTimeline.class);
       when(mockHoodieTable.getActiveTimeline()).thenReturn(activeTimeline);
       for (Pair<String, Option<byte[]>> savepoint : savepoints) {
-        HoodieInstant instant = new HoodieInstant(false, HoodieTimeline.SAVEPOINT_ACTION, savepoint.getLeft());
+        HoodieInstant instant = INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.SAVEPOINT_ACTION, savepoint.getLeft());
         when(activeTimeline.getInstantDetails(instant)).thenReturn(savepoint.getRight());
       }
     }
@@ -137,7 +138,7 @@ public class TestCleanPlanner {
     when(mockFsView.getAllFileGroupsStateless(partitionPath)).thenReturn(allFileGroups.stream());
 
     CleanPlanner<?, ?, ?, ?> cleanPlanner = new CleanPlanner<>(context, mockHoodieTable, config);
-    HoodieInstant earliestCommitToRetain = new HoodieInstant(COMPLETED, "COMMIT", earliestInstant);
+    HoodieInstant earliestCommitToRetain = INSTANT_FACTORY.createNewInstant(COMPLETED, "COMMIT", earliestInstant);
     Pair<Boolean, List<CleanFileInfo>> actual = cleanPlanner.getDeletePaths(partitionPath, Option.of(earliestCommitToRetain));
     assertEquals(expected, actual);
   }
@@ -162,7 +163,7 @@ public class TestCleanPlanner {
     if (!savepoints.isEmpty()) {
       for (Map.Entry<String, List<String>> entry : savepoints.entrySet()) {
         Pair<HoodieSavepointMetadata, Option<byte[]>> savepointMetadataOptionPair = getSavepointMetadata(entry.getValue());
-        HoodieInstant instant = new HoodieInstant(false, HoodieTimeline.SAVEPOINT_ACTION, entry.getKey());
+        HoodieInstant instant = INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.SAVEPOINT_ACTION, entry.getKey());
         when(activeTimeline.getInstantDetails(instant)).thenReturn(savepointMetadataOptionPair.getRight());
       }
     }
@@ -183,7 +184,7 @@ public class TestCleanPlanner {
 
     // Trigger clean and validate partitions to clean and earliest savepoint
     CleanPlanner<?, ?, ?, ?> cleanPlanner = new CleanPlanner<>(context, mockHoodieTable, config);
-    HoodieInstant earliestCommitToRetain = new HoodieInstant(COMPLETED, "COMMIT", earliestInstant);
+    HoodieInstant earliestCommitToRetain = INSTANT_FACTORY.createNewInstant(COMPLETED, "COMMIT", earliestInstant);
     List<String> partitionsToClean = cleanPlanner.getPartitionPathsToClean(Option.of(earliestCommitToRetain));
     HoodieTableMetaClient metaClient = mock(HoodieTableMetaClient.class);
     when(metaClient.getActiveTimeline()).thenReturn(activeTimeline);
@@ -555,7 +556,7 @@ public class TestCleanPlanner {
     String fileGroup = UUID.randomUUID() + "-0";
     HoodieFileGroupId fileGroupId = new HoodieFileGroupId(partition, UUID.randomUUID().toString());
     HoodieTimeline timeline = mock(HoodieTimeline.class);
-    when(timeline.lastInstant()).thenReturn(Option.of(new HoodieInstant(COMPLETED, "COMMIT", baseFileCommitTimes.get(baseFileCommitTimes.size() - 1))));
+    when(timeline.lastInstant()).thenReturn(Option.of(INSTANT_FACTORY.createNewInstant(COMPLETED, "COMMIT", baseFileCommitTimes.get(baseFileCommitTimes.size() - 1))));
     HoodieFileGroup group = new HoodieFileGroup(fileGroupId, timeline);
     for (String baseFileCommitTime : baseFileCommitTimes) {
       when(timeline.containsOrBeforeTimelineStarts(baseFileCommitTime)).thenReturn(true);
@@ -609,12 +610,12 @@ public class TestCleanPlanner {
   private static HoodieCleanerPlan mockLastCleanCommit(HoodieTable hoodieTable, String timestamp, String earliestCommitToRetain, HoodieActiveTimeline activeTimeline,
                                                        Pair<HoodieCleanMetadata, Option<byte[]>> cleanMetadata, Set<String> savepointsTrackedInLastClean)
       throws IOException {
-    HoodieDefaultTimeline cleanTimeline = mock(HoodieDefaultTimeline.class);
+    BaseTimelineV2 cleanTimeline = mock(BaseTimelineV2.class);
     when(activeTimeline.getCleanerTimeline()).thenReturn(cleanTimeline);
     when(hoodieTable.getCleanTimeline()).thenReturn(cleanTimeline);
-    HoodieDefaultTimeline completedCleanTimeline = mock(HoodieDefaultTimeline.class);
+    BaseTimelineV2 completedCleanTimeline = mock(BaseTimelineV2.class);
     when(cleanTimeline.filterCompletedInstants()).thenReturn(completedCleanTimeline);
-    HoodieInstant latestCleanInstant = new HoodieInstant(COMPLETED, HoodieTimeline.CLEAN_ACTION, timestamp);
+    HoodieInstant latestCleanInstant = INSTANT_FACTORY.createNewInstant(COMPLETED, HoodieTimeline.CLEAN_ACTION, timestamp);
     when(completedCleanTimeline.lastInstant()).thenReturn(Option.of(latestCleanInstant));
     when(activeTimeline.isEmpty(latestCleanInstant)).thenReturn(false);
     when(activeTimeline.getInstantDetails(latestCleanInstant)).thenReturn(cleanMetadata.getRight());
@@ -624,7 +625,7 @@ public class TestCleanPlanner {
         CleanPlanner.LATEST_CLEAN_PLAN_VERSION, null, null, cleanMetadata.getLeft().getExtraMetadata());
     when(activeTimeline.readCleanerInfoAsBytes(any())).thenReturn(Option.of(TimelineMetadataUtils.serializeAvroMetadata(cleanerPlan, HoodieCleanerPlan.class).get()));
 
-    HoodieDefaultTimeline commitsTimeline = mock(HoodieDefaultTimeline.class);
+    BaseTimelineV2 commitsTimeline = mock(BaseTimelineV2.class);
     when(activeTimeline.getCommitsTimeline()).thenReturn(commitsTimeline);
     when(commitsTimeline.isBeforeTimelineStarts(earliestCommitToRetain)).thenReturn(false);
 
@@ -636,7 +637,7 @@ public class TestCleanPlanner {
   private static void mockFewActiveInstants(HoodieTable hoodieTable, Map<String, List<String>> activeInstantsToPartitions,
                                             Map<String, List<String>> savepointedCommitsToAdd, boolean areCommitsForSavepointsRemoved, List<String> replaceCommits)
       throws IOException {
-    HoodieDefaultTimeline commitsTimeline = new HoodieDefaultTimeline();
+    BaseTimelineV2 commitsTimeline = new BaseTimelineV2();
     List<HoodieInstant> instants = new ArrayList<>();
     Map<String, List<String>> instantstoProcess = new HashMap<>();
     instantstoProcess.putAll(activeInstantsToPartitions);
@@ -644,7 +645,7 @@ public class TestCleanPlanner {
       instantstoProcess.putAll(savepointedCommitsToAdd);
     }
     instantstoProcess.forEach((k, v) -> {
-      HoodieInstant hoodieInstant = new HoodieInstant(COMPLETED, HoodieTimeline.COMMIT_ACTION, k);
+      HoodieInstant hoodieInstant = INSTANT_FACTORY.createNewInstant(COMPLETED, HoodieTimeline.COMMIT_ACTION, k);
       instants.add(hoodieInstant);
       Map<String, List<HoodieWriteStat>> partitionToWriteStats = new HashMap<>();
       v.forEach(partition -> partitionToWriteStats.put(partition, Collections.emptyList()));
@@ -664,13 +665,13 @@ public class TestCleanPlanner {
     when(hoodieTable.getActiveTimeline().getInstantsAsStream()).thenReturn(instants.stream());
     when(hoodieTable.getCompletedCommitsTimeline()).thenReturn(commitsTimeline);
 
-    HoodieDefaultTimeline savepointTimeline = new HoodieDefaultTimeline();
-    List<HoodieInstant> savepointInstants = savepointedCommitsToAdd.keySet().stream().map(sp -> new HoodieInstant(COMPLETED, HoodieTimeline.SAVEPOINT_ACTION, sp))
+    BaseTimelineV2 savepointTimeline = new BaseTimelineV2();
+    List<HoodieInstant> savepointInstants = savepointedCommitsToAdd.keySet().stream().map(sp -> INSTANT_FACTORY.createNewInstant(COMPLETED, HoodieTimeline.SAVEPOINT_ACTION, sp))
         .collect(Collectors.toList());
     savepointTimeline.setInstants(savepointInstants);
 
-    HoodieDefaultTimeline completedReplaceTimeline = new HoodieDefaultTimeline();
-    List<HoodieInstant> completedReplaceInstants = replaceCommits.stream().map(rc -> new HoodieInstant(COMPLETED, HoodieTimeline.REPLACE_COMMIT_ACTION, rc))
+    BaseTimelineV2 completedReplaceTimeline = new BaseTimelineV2();
+    List<HoodieInstant> completedReplaceInstants = replaceCommits.stream().map(rc -> INSTANT_FACTORY.createNewInstant(COMPLETED, HoodieTimeline.REPLACE_COMMIT_ACTION, rc))
         .collect(Collectors.toList());
     completedReplaceTimeline.setInstants(completedReplaceInstants);
 

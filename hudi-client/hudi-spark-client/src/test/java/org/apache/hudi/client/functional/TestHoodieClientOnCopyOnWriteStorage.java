@@ -129,6 +129,8 @@ import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.DEFAULT_F
 import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.DEFAULT_SECOND_PARTITION_PATH;
 import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.DEFAULT_THIRD_PARTITION_PATH;
 import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.TRIP_EXAMPLE_SCHEMA;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FILE_NAME_FACTORY;
 import static org.apache.hudi.common.testutils.Transformations.randomSelectAsHoodieKeys;
 import static org.apache.hudi.common.testutils.Transformations.recordsToRecordKeySet;
 import static org.apache.hudi.config.HoodieClusteringConfig.ASYNC_CLUSTERING_ENABLE;
@@ -625,10 +627,10 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
               .getInstants().get(0);
       completeRestoreFile = new StoragePath(
           config.getBasePath() + StoragePath.SEPARATOR + HoodieTableMetaClient.METAFOLDER_NAME
-              + StoragePath.SEPARATOR + restoreCompleted.getFileName());
+              + StoragePath.SEPARATOR + INSTANT_FILE_NAME_FACTORY.getFileName(restoreCompleted));
       backupCompletedRestoreFile = new StoragePath(
           config.getBasePath() + StoragePath.SEPARATOR + HoodieTableMetaClient.METAFOLDER_NAME
-              + StoragePath.SEPARATOR + restoreCompleted.getFileName() + ".backup");
+              + StoragePath.SEPARATOR + INSTANT_FILE_NAME_FACTORY.getFileName(restoreCompleted) + ".backup");
       metaClient.getStorage().rename(completeRestoreFile, backupCompletedRestoreFile);
     }
 
@@ -1071,28 +1073,28 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     allRecords.addAll(dataGen.generateInserts(commitTime, 200));
     assertThrows(HoodieUpsertException.class, () -> writeAndVerifyBatch(client, allRecords, commitTime, populateMetaFields));
     // verify pending clustering can be rolled back (even though there is a completed commit greater than pending clustering)
-    client.rollback(pendingClusteringInstant.getTimestamp());
+    client.rollback(pendingClusteringInstant.getRequestTime());
     metaClient.reloadActiveTimeline();
     // verify there are no pending clustering instants
     assertEquals(0, ClusteringUtils.getAllPendingClusteringPlans(metaClient).count());
 
     // delete rollback.completed instant to mimic failed rollback of clustering. and then trigger rollback of clustering again. same rollback instant should be used.
     HoodieInstant rollbackInstant = metaClient.getActiveTimeline().getRollbackTimeline().lastInstant().get();
-    FileCreateUtils.deleteRollbackCommit(metaClient.getBasePath().toString(), rollbackInstant.getTimestamp());
+    FileCreateUtils.deleteRollbackCommit(metaClient.getBasePath().toString(), rollbackInstant.getRequestTime());
     metaClient.reloadActiveTimeline();
 
     // create replace commit requested meta file so that rollback will not throw FileNotFoundException
     // create file slice with instantTime 001 and build clustering plan including this created 001 file slice.
-    HoodieClusteringPlan clusteringPlan = ClusteringTestUtils.createClusteringPlan(metaClient, pendingClusteringInstant.getTimestamp(), "1");
+    HoodieClusteringPlan clusteringPlan = ClusteringTestUtils.createClusteringPlan(metaClient, pendingClusteringInstant.getRequestTime(), "1");
     // create requested replace commit
     HoodieRequestedReplaceMetadata requestedReplaceMetadata = HoodieRequestedReplaceMetadata.newBuilder()
         .setClusteringPlan(clusteringPlan).setOperationType(WriteOperationType.CLUSTER.name()).build();
 
-    FileCreateUtils.createRequestedClusterCommit(metaClient.getBasePath().toString(), pendingClusteringInstant.getTimestamp(), requestedReplaceMetadata);
+    FileCreateUtils.createRequestedClusterCommit(metaClient.getBasePath().toString(), pendingClusteringInstant.getRequestTime(), requestedReplaceMetadata);
 
     // trigger clustering again. no new rollback instants should be generated.
     try {
-      client.cluster(pendingClusteringInstant.getTimestamp(), false);
+      client.cluster(pendingClusteringInstant.getRequestTime(), false);
       // new replace commit metadata generated is fake one. so, clustering will fail. but the intention of test is ot check for duplicate rollback instants.
     } catch (Exception e) {
       //ignore.
@@ -1101,7 +1103,7 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     metaClient.reloadActiveTimeline();
     // verify that there is no new rollback instant generated
     HoodieInstant newRollbackInstant = metaClient.getActiveTimeline().getRollbackTimeline().lastInstant().get();
-    assertEquals(rollbackInstant.getTimestamp(), newRollbackInstant.getTimestamp());
+    assertEquals(rollbackInstant.getRequestTime(), newRollbackInstant.getRequestTime());
   }
 
   @ParameterizedTest
@@ -1574,7 +1576,7 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     List<HoodieInstant> instants = metaClient.reloadActiveTimeline().getInstants();
     assertEquals(3, instants.size());
     assertEquals(HoodieActiveTimeline.ROLLBACK_ACTION, instants.get(2).getAction());
-    assertEquals(new HoodieInstant(true, HoodieActiveTimeline.COMMIT_ACTION, inflightCommit), instants.get(1));
+    assertEquals(INSTANT_FACTORY.createNewInstant(HoodieInstant.State.INFLIGHT, HoodieActiveTimeline.COMMIT_ACTION, inflightCommit), instants.get(1));
   }
 
   @Test
@@ -1635,7 +1637,7 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     HoodieClusteringPlan clusteringPlan =
         ClusteringUtils.createClusteringPlan(EXECUTION_STRATEGY_CLASS_NAME.defaultValue(), STRATEGY_PARAMS, fileSlices, Collections.emptyMap());
 
-    HoodieInstant clusteringInstant = new HoodieInstant(REQUESTED, CLUSTERING_ACTION, clusterTime);
+    HoodieInstant clusteringInstant = INSTANT_FACTORY.createNewInstant(REQUESTED, CLUSTERING_ACTION, clusterTime);
     HoodieRequestedReplaceMetadata requestedReplaceMetadata = HoodieRequestedReplaceMetadata.newBuilder()
         .setClusteringPlan(clusteringPlan).setOperationType(WriteOperationType.CLUSTER.name()).build();
     metaClient.getActiveTimeline().saveToPendingClusterCommit(clusteringInstant, TimelineMetadataUtils.serializeRequestedReplaceMetadata(requestedReplaceMetadata));

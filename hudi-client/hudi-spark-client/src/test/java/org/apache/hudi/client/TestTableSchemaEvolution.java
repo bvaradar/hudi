@@ -314,7 +314,7 @@ public class TestTableSchemaEvolution extends HoodieClientTestBase {
 
     // new commit
     HoodieTimeline curTimeline = metaClient.reloadActiveTimeline().getCommitAndReplaceTimeline().filterCompletedInstants();
-    assertTrue(curTimeline.lastInstant().get().getTimestamp().equals("006"));
+    assertTrue(curTimeline.lastInstant().get().getRequestTime().equals("006"));
     checkReadRecords("000", 3 * numRecords);
 
     // Updating with evolved schema is allowed
@@ -363,7 +363,7 @@ public class TestTableSchemaEvolution extends HoodieClientTestBase {
   private void checkLatestDeltaCommit(String instantTime) {
     HoodieTimeline timeline = metaClient.reloadActiveTimeline().getCommitsTimeline().filterCompletedInstants();
     assertEquals(HoodieTimeline.DELTA_COMMIT_ACTION, timeline.lastInstant().get().getAction());
-    assertEquals(instantTime, timeline.lastInstant().get().getTimestamp());
+    assertEquals(instantTime, timeline.lastInstant().get().getRequestTime());
   }
 
   private List<HoodieRecord> generateInsertsWithSchema(String commitTime, int numRecords, String schemaStr) {

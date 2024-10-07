@@ -36,7 +36,7 @@ public class EntityConversions {
   }
 
   public static HoodieInstant fromTHoodieInstant(THoodieInstant instant) {
-    return new HoodieInstant(fromTState(instant.getState()), fromTAction(instant.getAction()), instant.getTimestamp());
+    return instantFactory.createNewInstant(fromTState(instant.getState()), fromTAction(instant.getAction()), instant.getTimestamp());
   }
 
   public static TAction toTAction(String action) {

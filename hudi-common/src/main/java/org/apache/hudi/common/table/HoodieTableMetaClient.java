@@ -37,10 +37,12 @@ import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.model.HoodieTimelineTimeZone;
 import org.apache.hudi.common.model.OverwriteWithLatestAvroPayload;
 import org.apache.hudi.common.model.RecordPayloadType;
+import org.apache.hudi.common.table.timeline.ActiveTimelineUtils;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
+import org.apache.hudi.common.table.timeline.InstantFactory;
 import org.apache.hudi.common.table.timeline.TimeGenerator;
 import org.apache.hudi.common.table.timeline.TimeGenerators;
 import org.apache.hudi.common.table.timeline.TimelineLayout;
@@ -138,6 +140,7 @@ public class HoodieTableMetaClient implements Serializable {
   protected StorageConfiguration<?> storageConf;
   private HoodieTableType tableType;
   private TimelineLayoutVersion timelineLayoutVersion;
+  private TimelineLayout timelineLayout;
   protected HoodieTableConfig tableConfig;
   protected HoodieActiveTimeline activeTimeline;
   private ConsistencyGuardConfig consistencyGuardConfig = ConsistencyGuardConfig.newBuilder().build();
@@ -174,6 +177,8 @@ public class HoodieTableMetaClient implements Serializable {
               + ") than the one passed in config (" + layoutVersion.get() + ")");
     }
     this.timelineLayoutVersion = layoutVersion.orElseGet(() -> tableConfig.getTimelineLayoutVersion().get());
+    //TODO: This needs to be hooked into the writer side table version.
+    this.timelineLayout = TimelineLayout.getLayout(TimelineLayoutVersion.CURR_LAYOUT_VERSION);
     this.loadActiveTimelineOnLoad = loadActiveTimelineOnLoad;
     LOG.info("Finished Loading Table of type " + tableType + "(version=" + timelineLayoutVersion + ") from " + basePath);
     if (loadActiveTimelineOnLoad) {
@@ -378,6 +383,10 @@ public class HoodieTableMetaClient implements Serializable {
     return timelineLayoutVersion;
   }
 
+  public TimelineLayout getTimelineLayout() {
+    return timelineLayout;
+  }
+
   public Boolean isMetadataTable() {
     return HoodieTableMetadata.isMetadataTable(getBasePath());
   }
@@ -426,7 +435,7 @@ public class HoodieTableMetaClient implements Serializable {
    */
   public synchronized HoodieActiveTimeline getActiveTimeline() {
     if (activeTimeline == null) {
-      activeTimeline = new HoodieActiveTimeline(this);
+      activeTimeline = timelineLayout.getTimelineFactory().createActiveTimeline(this);
     }
     return activeTimeline;
   }
@@ -437,7 +446,7 @@ public class HoodieTableMetaClient implements Serializable {
    * @return Active instants timeline
    */
   public synchronized HoodieActiveTimeline reloadActiveTimeline() {
-    activeTimeline = new HoodieActiveTimeline(this);
+    activeTimeline = timelineLayout.getTimelineFactory().createActiveTimeline(this);
     return activeTimeline;
   }
 
@@ -456,7 +465,7 @@ public class HoodieTableMetaClient implements Serializable {
   public String createNewInstantTime(boolean shouldLock) {
     TimeGenerator timeGenerator = TimeGenerators
         .getTimeGenerator(timeGeneratorConfig, storageConf);
-    return HoodieActiveTimeline.createNewInstantTime(shouldLock, timeGenerator);
+    return ActiveTimelineUtils.createNewInstantTime(shouldLock, timeGenerator);
   }
 
   public HoodieTimeGeneratorConfig getTimeGeneratorConfig() {
@@ -525,8 +534,8 @@ public class HoodieTableMetaClient implements Serializable {
 
   private HoodieArchivedTimeline instantiateArchivedTimeline(String startTs) {
     return StringUtils.isNullOrEmpty(startTs)
-        ? new HoodieArchivedTimeline(this)
-        : new HoodieArchivedTimeline(this, startTs);
+        ? timelineLayout.getTimelineFactory().createArchivedTimeline(this)
+        : timelineLayout.getTimelineFactory().createArchivedTimeline(this, startTs);
   }
 
   private static void createTableLayoutOnStorage(StorageConfiguration<?> storageConf,
@@ -692,13 +701,14 @@ public class HoodieTableMetaClient implements Serializable {
    */
   public List<HoodieInstant> scanHoodieInstantsFromFileSystem(StoragePath timelinePath, Set<String> includedExtensions,
                                                               boolean applyLayoutVersionFilters) throws IOException {
+    final InstantFactory instantFactory = timelineLayout.getInstantFactory();
     Stream<HoodieInstant> instantStream =
         HoodieTableMetaClient
             .scanFiles(getStorage(), timelinePath, path -> {
               // Include only the meta files with extensions that needs to be included
-              String extension = HoodieInstant.getTimelineFileExtension(path.getName());
+              String extension = timelineLayout.getInstantFileNameParser().getTimelineFileExtension(path.getName());
               return includedExtensions.contains(extension);
-            }).stream().map(HoodieInstant::new);
+            }).stream().map(instantFactory::createNewInstant);
 
     if (applyLayoutVersionFilters) {
       instantStream = TimelineLayout.getLayout(getTimelineLayoutVersion()).filterHoodieInstants(instantStream);

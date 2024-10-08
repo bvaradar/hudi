@@ -38,11 +38,6 @@
     <dependencies>
         <!-- Apache License 2.0 https://github.com/mybatis/mybatis-3/blob/master/LICENSE-->
         <dependency>
-            <groupId>org.apache.hudi</groupId>
-            <artifactId>hudi-common</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.mybatis</groupId>
             <artifactId>mybatis</artifactId>
             <version>${mybatis.version}</version>

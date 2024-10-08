@@ -18,7 +18,6 @@
 
 package org.apache.hudi.metaserver.store;
 
-import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstantTimeGenerator;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.metaserver.store.bean.InstantBean;

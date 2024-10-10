@@ -52,6 +52,8 @@ import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.InstantFactory;
+import org.apache.hudi.common.table.timeline.InstantFileNameFactory;
+import org.apache.hudi.common.table.timeline.InstantFileNameParser;
 import org.apache.hudi.common.table.view.FileSystemViewManager;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
 import org.apache.hudi.common.table.view.SyncableFileSystemView;
@@ -133,6 +135,8 @@ public abstract class HoodieTable<T, I, K, O> implements Serializable {
   protected final TaskContextSupplier taskContextSupplier;
   private final HoodieTableMetadata metadata;
   private final InstantFactory instantFactory;
+  private final InstantFileNameFactory instantFileNameFactory;
+  private final InstantFileNameParser instantFileNameParser;
   private final HoodieStorageLayout storageLayout;
   private final boolean isMetadataTable;
 
@@ -149,6 +153,8 @@ public abstract class HoodieTable<T, I, K, O> implements Serializable {
         .build();
     this.metadata = HoodieTableMetadata.create(context, metaClient.getStorage(), metadataConfig, config.getBasePath());
     this.instantFactory = metaClient.getTimelineLayout().getInstantFactory();
+    this.instantFileNameFactory = metaClient.getTimelineLayout().getInstantFileNameFactory();
+    this.instantFileNameParser = metaClient.getTimelineLayout().getInstantFileNameParser();
     this.viewManager = getViewManager();
     this.metaClient = metaClient;
     this.index = getIndex(config, context);
@@ -310,6 +316,14 @@ public abstract class HoodieTable<T, I, K, O> implements Serializable {
 
   public InstantFactory getInstantFactory() {
     return instantFactory;
+  }
+
+  public InstantFileNameFactory getInstantFileNameFactory() {
+    return instantFileNameFactory;
+  }
+
+  public InstantFileNameParser getInstantFileNameParser() {
+    return instantFileNameParser;
   }
 
   /**

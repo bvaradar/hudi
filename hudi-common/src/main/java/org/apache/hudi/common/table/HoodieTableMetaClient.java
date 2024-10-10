@@ -177,8 +177,7 @@ public class HoodieTableMetaClient implements Serializable {
               + ") than the one passed in config (" + layoutVersion.get() + ")");
     }
     this.timelineLayoutVersion = layoutVersion.orElseGet(() -> tableConfig.getTimelineLayoutVersion().get());
-    //TODO: This needs to be hooked into the writer side table version.
-    this.timelineLayout = TimelineLayout.getLayout(TimelineLayoutVersion.CURR_LAYOUT_VERSION);
+    this.timelineLayout = TimelineLayout.getLayout(timelineLayoutVersion);
     this.loadActiveTimelineOnLoad = loadActiveTimelineOnLoad;
     LOG.info("Finished Loading Table of type " + tableType + "(version=" + timelineLayoutVersion + ") from " + basePath);
     if (loadActiveTimelineOnLoad) {
@@ -942,6 +941,8 @@ public class HoodieTableMetaClient implements Serializable {
 
     public TableBuilder setTableVersion(HoodieTableVersion tableVersion) {
       this.tableVersion = tableVersion;
+      // TimelineLayoutVersion is an internal setting which will be consistent with table version.
+      setTimelineLayoutVersion(tableVersion.getTimelineLayoutVersion().getVersion());
       return this;
     }
 

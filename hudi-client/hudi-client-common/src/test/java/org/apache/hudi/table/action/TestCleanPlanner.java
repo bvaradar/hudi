@@ -74,6 +74,8 @@ import java.util.stream.Stream;
 
 import static org.apache.hudi.common.table.timeline.HoodieInstant.State.COMPLETED;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FILE_NAME_FACTORY;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FILE_NAME_PARSER;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.getDefaultStorageConf;
 import static org.apache.hudi.common.util.CleanerUtils.CLEAN_METADATA_VERSION_2;
 import static org.apache.hudi.common.util.CleanerUtils.SAVEPOINTED_TIMESTAMPS;
@@ -114,6 +116,9 @@ public class TestCleanPlanner {
 
     SyncableFileSystemView mockFsView = mock(SyncableFileSystemView.class);
     when(mockHoodieTable.getHoodieView()).thenReturn(mockFsView);
+    when(mockHoodieTable.getInstantFactory()).thenReturn(INSTANT_FACTORY);
+    when(mockHoodieTable.getInstantFileNameFactory()).thenReturn(INSTANT_FILE_NAME_FACTORY);
+    when(mockHoodieTable.getInstantFileNameParser()).thenReturn(INSTANT_FILE_NAME_PARSER);
 
     // setup savepoint mocks
     Set<String> savepointTimestamps = savepoints.stream().map(Pair::getLeft).collect(Collectors.toSet());
@@ -160,6 +165,9 @@ public class TestCleanPlanner {
     // setup savepoint mocks
     Set<String> savepointTimestamps = savepoints.keySet().stream().collect(Collectors.toSet());
     when(mockHoodieTable.getSavepointTimestamps()).thenReturn(savepointTimestamps);
+    when(mockHoodieTable.getInstantFactory()).thenReturn(INSTANT_FACTORY);
+    when(mockHoodieTable.getInstantFileNameFactory()).thenReturn(INSTANT_FILE_NAME_FACTORY);
+    when(mockHoodieTable.getInstantFileNameParser()).thenReturn(INSTANT_FILE_NAME_PARSER);
     if (!savepoints.isEmpty()) {
       for (Map.Entry<String, List<String>> entry : savepoints.entrySet()) {
         Pair<HoodieSavepointMetadata, Option<byte[]>> savepointMetadataOptionPair = getSavepointMetadata(entry.getValue());
@@ -173,13 +181,14 @@ public class TestCleanPlanner {
         getCleanCommitMetadata(partitionsInLastClean, lastCleanInstant, earliestInstantsInLastClean, lastCompletedTimeInLastClean,
             savepointsTrackedInLastClean.keySet(), expectedEarliestSavepointInLastClean);
     HoodieCleanerPlan cleanerPlan = mockLastCleanCommit(mockHoodieTable, lastCleanInstant, earliestInstantsInLastClean, activeTimeline, cleanMetadataOptionPair, savepointsTrackedInLastClean.keySet());
-    mockFewActiveInstants(mockHoodieTable, activeInstantsPartitions, savepointsTrackedInLastClean, areCommitsForSavepointsRemoved, replaceCommits);
+    mockFewActiveInstants(mockHoodieTable, activeTimeline, activeInstantsPartitions, savepointsTrackedInLastClean, areCommitsForSavepointsRemoved, replaceCommits);
 
     // mock getAllPartitions
     HoodieStorage storage = mock(HoodieStorage.class);
     when(mockHoodieTable.getStorage()).thenReturn(storage);
     HoodieTableMetadata hoodieTableMetadata = mock(HoodieTableMetadata.class);
     when(mockHoodieTable.getMetadataTable()).thenReturn(hoodieTableMetadata);
+    when(mockHoodieTable.getCleanTimeline().filterCompletedInstants().lastInstant()).thenReturn(Option.of(INSTANT_FACTORY.createNewInstant(COMPLETED, HoodieTimeline.CLEAN_ACTION, lastCleanInstant)));
     when(hoodieTableMetadata.getAllPartitionPaths()).thenReturn(isPartitioned ? Arrays.asList(PARTITION1, PARTITION2, PARTITION3) : Collections.singletonList(StringUtils.EMPTY_STRING));
 
     // Trigger clean and validate partitions to clean and earliest savepoint
@@ -634,7 +643,7 @@ public class TestCleanPlanner {
     return cleanerPlan;
   }
 
-  private static void mockFewActiveInstants(HoodieTable hoodieTable, Map<String, List<String>> activeInstantsToPartitions,
+  private static void mockFewActiveInstants(HoodieTable hoodieTable, HoodieActiveTimeline activeTimeline, Map<String, List<String>> activeInstantsToPartitions,
                                             Map<String, List<String>> savepointedCommitsToAdd, boolean areCommitsForSavepointsRemoved, List<String> replaceCommits)
       throws IOException {
     BaseTimelineV2 commitsTimeline = new BaseTimelineV2();
@@ -659,7 +668,6 @@ public class TestCleanPlanner {
         throw new RuntimeException("Should not have failed", e);
       }
     });
-
     commitsTimeline.setInstants(instants);
     Collections.sort(instants);
     when(hoodieTable.getActiveTimeline().getInstantsAsStream()).thenReturn(instants.stream());
@@ -674,10 +682,8 @@ public class TestCleanPlanner {
     List<HoodieInstant> completedReplaceInstants = replaceCommits.stream().map(rc -> INSTANT_FACTORY.createNewInstant(COMPLETED, HoodieTimeline.REPLACE_COMMIT_ACTION, rc))
         .collect(Collectors.toList());
     completedReplaceTimeline.setInstants(completedReplaceInstants);
-
-    when(hoodieTable.getActiveTimeline().findInstantsAfterOrEquals(any())).thenCallRealMethod();
-    when(hoodieTable.getActiveTimeline().getCompletedReplaceTimeline()).thenReturn(completedReplaceTimeline);
-    when(hoodieTable.getActiveTimeline().getSavePointTimeline()).thenReturn(savepointTimeline);
+    when(activeTimeline.getCompletedReplaceTimeline()).thenReturn(completedReplaceTimeline);
+    when(activeTimeline.getSavePointTimeline()).thenReturn(savepointTimeline);
     when(hoodieTable.isPartitioned()).thenReturn(true);
     when(hoodieTable.isMetadataTable()).thenReturn(false);
   }

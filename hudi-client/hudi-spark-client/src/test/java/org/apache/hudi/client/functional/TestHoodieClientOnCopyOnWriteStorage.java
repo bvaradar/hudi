@@ -124,7 +124,6 @@ import static org.apache.hudi.common.table.timeline.HoodieInstant.State.INFLIGHT
 import static org.apache.hudi.common.table.timeline.HoodieInstant.State.REQUESTED;
 import static org.apache.hudi.common.table.timeline.HoodieTimeline.CLUSTERING_ACTION;
 import static org.apache.hudi.common.table.timeline.HoodieTimeline.REPLACE_COMMIT_ACTION;
-import static org.apache.hudi.common.table.timeline.versioning.TimelineLayoutVersion.VERSION_0;
 import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.DEFAULT_FIRST_PARTITION_PATH;
 import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.DEFAULT_SECOND_PARTITION_PATH;
 import static org.apache.hudi.common.testutils.HoodieTestDataGenerator.DEFAULT_THIRD_PARTITION_PATH;
@@ -512,12 +511,10 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
     HoodieWriteConfig hoodieWriteConfig = getConfigBuilder(EAGER)
         .withRollbackUsingMarkers(true)
         .withArchivalConfig(HoodieArchivalConfig.newBuilder().withArchiveBeyondSavepoint(true).build())
-        .withProps(config.getProps()).withTimelineLayoutVersion(
-            VERSION_0).build();
+        .withProps(config.getProps()).build();
 
     HoodieTableMetaClient.newTableBuilder()
         .fromMetaClient(metaClient)
-        .setTimelineLayoutVersion(VERSION_0)
         .setPopulateMetaFields(config.populateMetaFields())
         .initTable(metaClient.getStorageConf().newInstance(), metaClient.getBasePath());
 

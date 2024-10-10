@@ -59,6 +59,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FILE_NAME_FACTORY;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FILE_NAME_PARSER;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.getDefaultStorageConf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -139,6 +141,9 @@ public class TestCleanActionExecutor {
     when(activeTimeline.readCleanerInfoAsBytes(cleanInstant)).thenReturn(TimelineMetadataUtils.serializeCleanerPlan(cleanerPlan));
 
     when(mockHoodieTable.getCleanTimeline()).thenReturn(cleanTimeline);
+    when(mockHoodieTable.getInstantFactory()).thenReturn(INSTANT_FACTORY);
+    when(mockHoodieTable.getInstantFileNameFactory()).thenReturn(INSTANT_FILE_NAME_FACTORY);
+    when(mockHoodieTable.getInstantFileNameParser()).thenReturn(INSTANT_FILE_NAME_PARSER);
     HoodieTimeline inflightsAndRequestedTimeline = mock(HoodieTimeline.class);
     when(cleanTimeline.filterInflightsAndRequested()).thenReturn(inflightsAndRequestedTimeline);
     when(inflightsAndRequestedTimeline.getInstants()).thenReturn(Collections.singletonList(cleanInstant));

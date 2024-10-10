@@ -56,9 +56,9 @@ public abstract class BaseActionExecutor<T, I, K, O, R> implements Serializable 
     this.storageConf = context.getStorageConf();
     this.config = config;
     this.table = table;
-    this.instantFactory = table.getMetaClient().getTimelineLayout().getInstantFactory();
-    this.instantFileNameFactory = table.getMetaClient().getTimelineLayout().getInstantFileNameFactory();
-    this.instantFileNameParser = table.getMetaClient().getTimelineLayout().getInstantFileNameParser();
+    this.instantFactory = table.getInstantFactory();
+    this.instantFileNameFactory = table.getInstantFileNameFactory();
+    this.instantFileNameParser = table.getInstantFileNameParser();
     this.instantTime = instantTime;
   }
 

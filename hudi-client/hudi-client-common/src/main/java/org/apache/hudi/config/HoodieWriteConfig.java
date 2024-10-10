@@ -2870,8 +2870,9 @@ public class HoodieWriteConfig extends HoodieConfig {
     }
 
     public Builder withWriteTableVersion(int writeVersion) {
-      writeConfig.setValue(WRITE_TABLE_VERSION, String.valueOf(HoodieTableVersion.fromVersionCode(writeVersion).versionCode()));
-      return this;
+      HoodieTableVersion tableVersion = HoodieTableVersion.fromVersionCode(writeVersion);
+      writeConfig.setValue(WRITE_TABLE_VERSION, String.valueOf(tableVersion.versionCode()));
+      return withTimelineLayoutVersion(tableVersion.getTimelineLayoutVersion().getVersion());
     }
 
     public Builder withAutoUpgradeVersion(boolean enable) {

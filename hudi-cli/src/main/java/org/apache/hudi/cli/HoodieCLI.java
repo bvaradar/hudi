@@ -104,9 +104,8 @@ public class HoodieCLI {
         .setLayoutVersion(Option.of(layoutVersion)).build());
   }
 
-  public static void connectTo(String basePath, Integer layoutVersion) {
+  public static void connectTo(String basePath) {
     setBasePath(basePath);
-    setLayoutVersion(layoutVersion);
     refreshTableMetadata();
   }
 

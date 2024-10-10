@@ -34,7 +34,6 @@ import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.HoodieTableVersion;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
-import org.apache.hudi.common.table.timeline.versioning.TimelineLayoutVersion;
 import org.apache.hudi.common.testutils.CompactionTestUtils;
 import org.apache.hudi.common.testutils.HoodieTestDataGenerator;
 import org.apache.hudi.common.util.CompactionUtils;
@@ -84,7 +83,7 @@ public class ITTestCompactionCommand extends HoodieCLIIntegrationTestBase {
     // Create table and connect
     new TableCommand().createTable(
         basePath, tableName, HoodieTableType.MERGE_ON_READ.name(),
-        "", TimelineLayoutVersion.VERSION_1, HoodieTableVersion.current().versionCode(),
+        "", HoodieTableVersion.current().versionCode(),
         "org.apache.hudi.common.model.HoodieAvroPayload");
 
     initMetaClient();

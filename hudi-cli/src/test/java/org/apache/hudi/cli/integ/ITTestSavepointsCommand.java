@@ -29,7 +29,6 @@ import org.apache.hudi.common.table.HoodieTableVersion;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
-import org.apache.hudi.common.table.timeline.versioning.TimelineLayoutVersion;
 import org.apache.hudi.common.testutils.HoodieTestDataGenerator;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.hadoop.fs.HadoopFSUtils;
@@ -73,7 +72,7 @@ public class ITTestSavepointsCommand extends HoodieCLIIntegrationTestBase {
     // Create table and connect
     new TableCommand().createTable(
         tablePath, "test_table", HoodieTableType.COPY_ON_WRITE.name(),
-        "", TimelineLayoutVersion.VERSION_1, HoodieTableVersion.current().versionCode(),
+        "", HoodieTableVersion.current().versionCode(),
         "org.apache.hudi.common.model.HoodieAvroPayload");
   }
 

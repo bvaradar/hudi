@@ -141,7 +141,7 @@ public class CleanPlanner<T, I, K, O> implements Serializable {
       throw new HoodieSavepointException(
           "Could not get data files for savepoint " + savepointTimestamp + ". No such savepoint.");
     }
-    InstantFactory instantFactory = hoodieTable.getMetaClient().getTimelineLayout().getInstantFactory();
+    InstantFactory instantFactory = hoodieTable.getInstantFactory();
     HoodieInstant instant = instantFactory.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.SAVEPOINT_ACTION, savepointTimestamp);
     try {
       return TimelineMetadataUtils.deserializeHoodieSavepointMetadata(

@@ -83,7 +83,7 @@ public class ActiveTimelineUtils {
       if (NOT_PARSABLE_TIMESTAMPS.contains(timestamp)) {
         parsedDate = Option.of(new Date(Integer.parseInt(timestamp)));
       } else {
-        LOG.warn("Failed to parse timestamp " + timestamp + ": " + e.getMessage());
+        LOG.warn("Failed to parse timestamp {}: {}", timestamp, e.getMessage());
         parsedDate = Option.empty();
       }
     }

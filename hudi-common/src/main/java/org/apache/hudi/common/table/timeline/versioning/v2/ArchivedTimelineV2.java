@@ -18,21 +18,23 @@
 
 package org.apache.hudi.common.table.timeline.versioning.v2;
 
-import org.apache.avro.generic.GenericRecord;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
-import org.apache.hudi.common.table.timeline.HoodieTimeline;
-import org.apache.hudi.common.table.timeline.HoodieInstant;
-import org.apache.hudi.common.table.timeline.InstantComparatorUtils;
-import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
 import org.apache.hudi.common.table.timeline.ArchivedTimelineLoader;
+import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
+import org.apache.hudi.common.table.timeline.HoodieInstant;
+import org.apache.hudi.common.table.timeline.HoodieTimeline;
+import org.apache.hudi.common.table.timeline.InstantComparatorUtils;
 import org.apache.hudi.common.table.timeline.InstantFactory;
 import org.apache.hudi.common.table.timeline.versioning.v1.InstantFactoryV1;
 import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.Option;
+
+import org.apache.avro.generic.GenericRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -64,8 +66,8 @@ public class ArchivedTimelineV2 extends BaseTimelineV2 implements HoodieArchived
    * of the next loading.
    */
   private String cursorInstant;
-  private ArchivedTimelineLoader timelineLoader = new ArchivedTimelineLoaderV2();
-  private InstantFactory instantFactory = new InstantFactoryV1();
+  private final ArchivedTimelineLoader timelineLoader = new ArchivedTimelineLoaderV2();
+  private final InstantFactory instantFactory = new InstantFactoryV1();
 
   /**
    * Loads all the archived instants.

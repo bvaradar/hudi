@@ -28,11 +28,9 @@ import java.util.stream.Stream;
 public abstract class TimelineFactory implements Serializable {
 
   public abstract HoodieTimeline createDefaultTimeline(Stream<HoodieInstant> instants,
-                                                                      Function<HoodieInstant, Option<byte[]>> details);
+                                                       Function<HoodieInstant, Option<byte[]>> details);
 
   public abstract HoodieActiveTimeline createActiveTimeline();
-
-  public abstract HoodieArchivedTimeline createArchivedTimeline();
 
   public abstract HoodieArchivedTimeline createArchivedTimeline(HoodieTableMetaClient metaClient);
 

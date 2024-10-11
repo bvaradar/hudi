@@ -74,8 +74,8 @@ public class ActiveTimelineV2 extends BaseTimelineV2 implements HoodieActiveTime
 
   private static final Logger LOG = LoggerFactory.getLogger(ActiveTimelineV2.class);
   protected HoodieTableMetaClient metaClient;
-  private InstantFileNameFactory instantFileNameFactory = new InstantFileNameFactoryV2();
-  private InstantFactory instantFactory = new InstantFactoryV2();
+  private final InstantFileNameFactory instantFileNameFactory = new InstantFileNameFactoryV2();
+  private final InstantFactory instantFactory = new InstantFactoryV2();
 
   private ActiveTimelineV2(HoodieTableMetaClient metaClient, Set<String> includedExtensions,
                            boolean applyLayoutFilters) {

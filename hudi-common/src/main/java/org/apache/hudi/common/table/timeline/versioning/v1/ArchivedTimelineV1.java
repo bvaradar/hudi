@@ -18,8 +18,6 @@
 
 package org.apache.hudi.common.table.timeline.versioning.v1;
 
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.ArchivedTimelineLoader;
@@ -29,10 +27,14 @@ import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.InstantFactory;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.storage.StoragePath;
+
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.IndexedRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
@@ -52,8 +54,8 @@ public class ArchivedTimelineV1 extends BaseTimelineV1 implements HoodieArchived
   private static final String STATE_TRANSITION_TIME = "stateTransitionTime";
   private HoodieTableMetaClient metaClient;
   private final Map<String, byte[]> readCommits = new HashMap<>();
-  private ArchivedTimelineLoader timelineLoader = new ArchivedTimelineLoaderV1();
-  private InstantFactory instantFactory = new InstantFactoryV1();
+  private final ArchivedTimelineLoader timelineLoader = new ArchivedTimelineLoaderV1();
+  private final InstantFactory instantFactory = new InstantFactoryV1();
 
   private static final Logger LOG = LoggerFactory.getLogger(org.apache.hudi.common.table.timeline.HoodieArchivedTimeline.class);
 

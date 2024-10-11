@@ -30,7 +30,7 @@ public class TimelineLayoutVersion implements Serializable, Comparable<TimelineL
 
   public static final Integer VERSION_0 = 0; // pre 0.5.1  version format
   public static final Integer VERSION_1 = 1; // version with no renames for 0.x
-  public static final Integer VERSION_2 = 2; // version with no renames for 0.x
+  public static final Integer VERSION_2 = 2; // version with completion time in instant filenames and other changes specific to 1.x
 
   public static final Integer CURR_VERSION = VERSION_2;
   public static final TimelineLayoutVersion LAYOUT_VERSION_0 = new TimelineLayoutVersion(VERSION_0);

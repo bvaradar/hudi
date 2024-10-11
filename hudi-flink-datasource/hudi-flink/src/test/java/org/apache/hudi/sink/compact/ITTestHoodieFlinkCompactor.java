@@ -236,6 +236,7 @@ public class ITTestHoodieFlinkCompactor {
         new UpgradeDowngrade(metaClient, writeClient.getConfig(), writeClient.getEngineContext(), FlinkUpgradeDowngradeHelper.getInstance()).run(HoodieTableVersion.SIX, "none");
       }
 
+      table = writeClient.getHoodieTable();
       // generate compaction plan
       // should support configurable commit metadata
       HoodieCompactionPlan compactionPlan = CompactionUtils.getCompactionPlan(

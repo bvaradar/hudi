@@ -22,6 +22,9 @@ import org.apache.hudi.common.fs.NoOpConsistencyGuard;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieInstant.State;
 import org.apache.hudi.common.table.timeline.versioning.TimelineLayoutVersion;
+import org.apache.hudi.common.table.timeline.versioning.v1.InstantFactoryV1;
+import org.apache.hudi.common.table.timeline.versioning.v1.InstantFileNameFactoryV1;
+import org.apache.hudi.common.table.timeline.versioning.v1.TimelineV1Factory;
 import org.apache.hudi.common.testutils.HoodieCommonTestHarness;
 import org.apache.hudi.common.testutils.MockHoodieTimeline;
 import org.apache.hudi.common.util.CollectionUtils;
@@ -93,34 +96,36 @@ public class TestHoodieActiveTimeline extends HoodieCommonTestHarness {
 
   @Test
   public void testLoadingInstantsFromFiles() throws IOException {
-    HoodieInstant instant1 = INSTANT_FACTORY.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "1");
-    HoodieInstant instant2 = INSTANT_FACTORY.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "3");
-    HoodieInstant instant3 = INSTANT_FACTORY.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "5");
-    HoodieInstant instant4 = INSTANT_FACTORY.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "8");
-    HoodieInstant instant1Complete = INSTANT_FACTORY.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "1");
-    HoodieInstant instant2Complete = INSTANT_FACTORY.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "3");
-    HoodieInstant instant3Complete = INSTANT_FACTORY.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "5");
-    HoodieInstant instant4Complete = INSTANT_FACTORY.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "8");
+    InstantFactory instantFactory = INSTANT_FACTORY;
+    TimelineFactory timelineFactory = TIMELINE_FACTORY;
+    HoodieInstant instant1 = instantFactory.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "1");
+    HoodieInstant instant2 = instantFactory.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "3");
+    HoodieInstant instant3 = instantFactory.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "5");
+    HoodieInstant instant4 = instantFactory.createNewInstant(State.REQUESTED, HoodieTimeline.COMMIT_ACTION, "8");
+    HoodieInstant instant1Complete = instantFactory.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "1");
+    HoodieInstant instant2Complete = instantFactory.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "3");
+    HoodieInstant instant3Complete = instantFactory.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "5");
+    HoodieInstant instant4Complete = instantFactory.createNewInstant(State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "8");
 
-    HoodieInstant instant5 = INSTANT_FACTORY.createNewInstant(State.INFLIGHT, HoodieTimeline.COMMIT_ACTION, "9");
+    HoodieInstant instant5 = instantFactory.createNewInstant(State.INFLIGHT, HoodieTimeline.COMMIT_ACTION, "9");
 
-    timeline = TIMELINE_FACTORY.createActiveTimeline(metaClient);
+    timeline = timelineFactory.createActiveTimeline(metaClient);
     timeline.createNewInstant(instant1);
     timeline.transitionRequestedToInflight(instant1, Option.empty());
     // Won't lock here since InProcessLockProvider is not in hudi-common
-    timeline.saveAsComplete(INSTANT_FACTORY.createNewInstant(State.INFLIGHT, instant1.getAction(), instant1.getRequestTime()),
+    timeline.saveAsComplete(instantFactory.createNewInstant(State.INFLIGHT, instant1.getAction(), instant1.getRequestTime()),
         Option.empty());
     timeline.createNewInstant(instant2);
     timeline.transitionRequestedToInflight(instant2, Option.empty());
-    timeline.saveAsComplete(INSTANT_FACTORY.createNewInstant(State.INFLIGHT, instant2.getAction(), instant2.getRequestTime()),
+    timeline.saveAsComplete(instantFactory.createNewInstant(State.INFLIGHT, instant2.getAction(), instant2.getRequestTime()),
         Option.empty());
     timeline.createNewInstant(instant3);
     timeline.transitionRequestedToInflight(instant3, Option.empty());
-    timeline.saveAsComplete(INSTANT_FACTORY.createNewInstant(State.INFLIGHT, instant3.getAction(), instant3.getRequestTime()),
+    timeline.saveAsComplete(instantFactory.createNewInstant(State.INFLIGHT, instant3.getAction(), instant3.getRequestTime()),
         Option.empty());
     timeline.createNewInstant(instant4);
     timeline.transitionRequestedToInflight(instant4, Option.empty());
-    timeline.saveAsComplete(INSTANT_FACTORY.createNewInstant(State.INFLIGHT, instant4.getAction(), instant4.getRequestTime()),
+    timeline.saveAsComplete(instantFactory.createNewInstant(State.INFLIGHT, instant4.getAction(), instant4.getRequestTime()),
         Option.empty());
     timeline.createNewInstant(instant5);
     timeline = timeline.reload();
@@ -150,22 +155,24 @@ public class TestHoodieActiveTimeline extends HoodieCommonTestHarness {
         .setTimelineLayoutVersion(VERSION_0)
         .initTable(metaClient.getStorageConf().newInstance(), metaClient.getBasePath());
 
-    HoodieInstant instant6 = INSTANT_FACTORY.createNewInstant(State.REQUESTED, HoodieTimeline.COMPACTION_ACTION, "9");
+    instantFactory = new InstantFactoryV1();
+    timelineFactory = new TimelineV1Factory(TimelineLayout.getLayout(TimelineLayoutVersion.LAYOUT_VERSION_1));
+    InstantFileNameFactory instantFileNameFactory = new InstantFileNameFactoryV1();
+    HoodieInstant instant6 = instantFactory.createNewInstant(State.REQUESTED, HoodieTimeline.COMPACTION_ACTION, "9");
     byte[] dummy = new byte[5];
-    HoodieActiveTimeline oldTimeline = TIMELINE_FACTORY.createActiveTimeline(
+    HoodieActiveTimeline oldTimeline = timelineFactory.createActiveTimeline(
         HoodieTableMetaClient.builder().setConf(metaClient.getStorageConf().newInstance())
             .setBasePath(metaClient.getBasePath())
-            .setLoadActiveTimelineOnLoad(true)
+            .setLoadActiveTimelineOnLoad(false)
             .setConsistencyGuardConfig(metaClient.getConsistencyGuardConfig())
-            .setFileSystemRetryConfig(metaClient.getFileSystemRetryConfig())
-            .setLayoutVersion(Option.of(new TimelineLayoutVersion(VERSION_0))).build());
+            .setFileSystemRetryConfig(metaClient.getFileSystemRetryConfig()).build());
     // Old Timeline writes both to aux and timeline folder
     oldTimeline.saveToCompactionRequested(instant6, Option.of(dummy));
     // Now use the latest timeline version
     timeline = timeline.reload();
     // Ensure aux file is present
     assertTrue(metaClient.getStorage().exists(new StoragePath(metaClient.getMetaPath(),
-        INSTANT_FILE_NAME_FACTORY.getFileName(instant6))));
+        instantFileNameFactory.getFileName(instant6))));
     // Read 5 bytes
     assertEquals(5, timeline.readCompactionPlanAsBytes(instant6).get().length);
 

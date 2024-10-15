@@ -56,7 +56,7 @@ public class AverageRecordSizeUtils {
         HoodieInstant instant = instants.next();
         try {
           HoodieCommitMetadata commitMetadata = HoodieCommitMetadata
-              .fromBytes(commitTimeline.getInstantDetails(instant).get(), HoodieCommitMetadata.class);
+              .fromBytes(instant, commitTimeline.getInstantDetails(instant).get(), HoodieCommitMetadata.class);
           if (instant.getAction().equals(COMMIT_ACTION) || instant.getAction().equals(REPLACE_COMMIT_ACTION)) {
             long totalBytesWritten = commitMetadata.fetchTotalBytesWritten();
             long totalRecordsWritten = commitMetadata.fetchTotalRecordsWritten();

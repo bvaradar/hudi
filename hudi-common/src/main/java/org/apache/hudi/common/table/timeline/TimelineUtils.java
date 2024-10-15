@@ -155,7 +155,7 @@ public class TimelineUtils {
         case COMMIT_ACTION:
         case DELTA_COMMIT_ACTION:
           try {
-            HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(timeline.getInstantDetails(s).get(), HoodieCommitMetadata.class);
+            HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(s, timeline.getInstantDetails(s).get(), HoodieCommitMetadata.class);
             return commitMetadata.getPartitionToWriteStats().keySet().stream();
           } catch (IOException e) {
             throw new HoodieIOException("Failed to get partitions written at " + s, e);
@@ -241,7 +241,7 @@ public class TimelineUtils {
   private static Option<String> getMetadataValue(HoodieTableMetaClient metaClient, String extraMetadataKey, HoodieInstant instant) {
     try {
       LOG.info("reading checkpoint info for:" + instant + " key: " + extraMetadataKey);
-      HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
+      HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(instant,
           metaClient.getCommitsTimeline().getInstantDetails(instant).get(), HoodieCommitMetadata.class);
 
       return Option.ofNullable(commitMetadata.getExtraMetadata().get(extraMetadataKey));
@@ -322,7 +322,7 @@ public class TimelineUtils {
     if (instant.getAction().equals(REPLACE_COMMIT_ACTION) || instant.getAction().equals(CLUSTERING_ACTION)) {
       return HoodieReplaceCommitMetadata.fromBytes(data, HoodieReplaceCommitMetadata.class);
     } else {
-      return HoodieCommitMetadata.fromBytes(data, HoodieCommitMetadata.class);
+      return HoodieCommitMetadata.fromBytes(instant, data, HoodieCommitMetadata.class);
     }
   }
 

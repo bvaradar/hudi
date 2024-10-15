@@ -173,7 +173,7 @@ public class WriteProfiles {
       HoodieTimeline timeline) {
     try {
       byte[] data = timeline.getInstantDetails(instant).get();
-      return Option.of(HoodieCommitMetadata.fromBytes(data, HoodieCommitMetadata.class));
+      return Option.of(HoodieCommitMetadata.fromBytes(instant, data, HoodieCommitMetadata.class));
     } catch (FileNotFoundException fe) {
       // make this fail safe.
       LOG.warn("Instant {} was deleted by the cleaner, ignore", instant.getRequestTime());

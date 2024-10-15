@@ -958,7 +958,7 @@ public abstract class HoodieJavaClientTestHarness extends HoodieWriterClientTest
     HashMap<String, String> fileIdToFullPath = new HashMap<>();
     for (HoodieInstant commit : commitsToReturn) {
       HoodieCommitMetadata metadata =
-          HoodieCommitMetadata.fromBytes(commitTimeline.getInstantDetails(commit).get(), HoodieCommitMetadata.class);
+          HoodieCommitMetadata.fromBytes(commit, commitTimeline.getInstantDetails(commit).get(), HoodieCommitMetadata.class);
       fileIdToFullPath.putAll(metadata.getFileIdAndFullPaths(new StoragePath(basePath)));
     }
     return fileIdToFullPath;

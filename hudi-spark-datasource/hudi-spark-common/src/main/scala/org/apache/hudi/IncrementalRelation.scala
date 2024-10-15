@@ -168,7 +168,7 @@ class IncrementalRelation(val sqlContext: SQLContext,
       }.toMap
 
       for (commit <- commitsToReturn) {
-        val metadata: HoodieCommitMetadata = HoodieCommitMetadata.fromBytes(commitTimeline.getInstantDetails(commit)
+        val metadata: HoodieCommitMetadata = HoodieCommitMetadata.fromBytes(commit, commitTimeline.getInstantDetails(commit)
           .get, classOf[HoodieCommitMetadata])
 
         if (HoodieTimeline.METADATA_BOOTSTRAP_INSTANT_TS == commit.getRequestTime) {

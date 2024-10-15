@@ -371,9 +371,10 @@ public class TestMergeOnReadRollbackActionExecutor extends HoodieClientRollbackT
     String generatedFileID = firstPartitionCommit2FileGroups.get(0).getFileGroupId().getFileId();
 
     // check hoodieCommitMeta
-    HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
+    HoodieInstant instant = INSTANT_FACTORY.createNewInstant(HoodieInstant.State.INFLIGHT, HoodieTimeline.DELTA_COMMIT_ACTION, "001");
+    HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(instant,
         table.getMetaClient().getCommitTimeline()
-            .getInstantDetails(INSTANT_FACTORY.createNewInstant(HoodieInstant.State.INFLIGHT, HoodieTimeline.DELTA_COMMIT_ACTION, "001"))
+            .getInstantDetails(instant)
             .get(),
         HoodieCommitMetadata.class);
     List<HoodieWriteStat> firstPartitionWriteStat = commitMetadata.getPartitionToWriteStats().get(DEFAULT_FIRST_PARTITION_PATH);
@@ -398,9 +399,10 @@ public class TestMergeOnReadRollbackActionExecutor extends HoodieClientRollbackT
     statuses = client.upsert(writeRecords, newCommitTime);
     client.commit(newCommitTime, statuses);
     table = this.getHoodieTable(metaClient, cfg);
-    commitMetadata = HoodieCommitMetadata.fromBytes(
+    HoodieInstant instant1 = INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.DELTA_COMMIT_ACTION, newCommitTime);
+    commitMetadata = HoodieCommitMetadata.fromBytes(instant1,
         table.getMetaClient().getCommitTimeline()
-            .getInstantDetails(INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.DELTA_COMMIT_ACTION, newCommitTime))
+            .getInstantDetails(instant1)
             .get(),
         HoodieCommitMetadata.class);
     assertTrue(commitMetadata.getPartitionToWriteStats().containsKey(DEFAULT_FIRST_PARTITION_PATH));

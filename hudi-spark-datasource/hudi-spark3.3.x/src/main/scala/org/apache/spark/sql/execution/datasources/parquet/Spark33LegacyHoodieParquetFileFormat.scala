@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl
 import org.apache.hadoop.mapreduce.{JobID, TaskAttemptID, TaskID, TaskType}
+import org.apache.hudi.common.table.timeline.versioning.v2.InstantFactoryV2
 import org.apache.hudi.common.table.timeline.versioning.v2.InstantFileNameParserV2
 import org.apache.parquet.filter2.compat.FilterCompat
 import org.apache.parquet.filter2.predicate.FilterApi
@@ -164,7 +165,7 @@ class Spark33LegacyHoodieParquetFileFormat(private val shouldAppendPartitionValu
         val storage = new HoodieHadoopStorage(tablePath, sharedConf)
         InternalSchemaCache.getInternalSchemaByVersionId(
           commitInstantTime, tablePath, storage, if (validCommits == null) "" else validCommits,
-          new InstantFileNameParserV2())
+          new InstantFactoryV2(), new InstantFileNameParserV2())
       } else {
         null
       }

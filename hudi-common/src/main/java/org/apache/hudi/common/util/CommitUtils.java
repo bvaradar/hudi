@@ -126,7 +126,7 @@ public class CommitUtils {
 
   public static Option<HoodieCommitMetadata> buildMetadataFromInstant(HoodieTimeline timeline, HoodieInstant instant) {
     try {
-      HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
+      HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(instant,
           timeline.getInstantDetails(instant).get(),
           HoodieCommitMetadata.class);
 
@@ -183,7 +183,7 @@ public class CommitUtils {
         .map(instant -> {
           try {
             HoodieCommitMetadata commitMetadata = HoodieCommitMetadata
-                .fromBytes(timeline.getInstantDetails(instant).get(), HoodieCommitMetadata.class);
+                .fromBytes(instant, timeline.getInstantDetails(instant).get(), HoodieCommitMetadata.class);
             // process commits only with checkpoint entries
             String checkpointValue = commitMetadata.getMetadata(checkpointKey);
             if (StringUtils.nonEmpty(checkpointValue)) {

@@ -101,7 +101,7 @@ class ShowCommitsProcedure(includeExtraMetadata: Boolean) extends BaseProcedure 
 
     for (i <- 0 until newCommits.size) {
       val commit = newCommits.get(i)
-      val commitMetadata = HoodieCommitMetadata.fromBytes(timeline.getInstantDetails(commit).get, classOf[HoodieCommitMetadata])
+      val commitMetadata = HoodieCommitMetadata.fromBytes(commit, timeline.getInstantDetails(commit).get, classOf[HoodieCommitMetadata])
       for (partitionWriteStat <- commitMetadata.getPartitionToWriteStats.entrySet.asScala) {
         for (hoodieWriteStat <- partitionWriteStat.getValue.asScala) {
           rows.add(Row(
@@ -135,7 +135,7 @@ class ShowCommitsProcedure(includeExtraMetadata: Boolean) extends BaseProcedure 
 
     for (i <- 0 until newCommits.size) {
       val commit = newCommits.get(i)
-      val commitMetadata = HoodieCommitMetadata.fromBytes(timeline.getInstantDetails(commit).get, classOf[HoodieCommitMetadata])
+      val commitMetadata = HoodieCommitMetadata.fromBytes(commit, timeline.getInstantDetails(commit).get, classOf[HoodieCommitMetadata])
       rows.add(Row(commit.getRequestTime, commit.getCompletionTime, commit.getAction, commitMetadata.fetchTotalBytesWritten, commitMetadata.fetchTotalFilesInsert,
         commitMetadata.fetchTotalFilesUpdated, commitMetadata.fetchTotalPartitionsWritten,
         commitMetadata.fetchTotalRecordsWritten, commitMetadata.fetchTotalUpdateRecordsWritten,

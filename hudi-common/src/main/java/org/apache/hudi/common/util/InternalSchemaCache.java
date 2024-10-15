@@ -23,6 +23,7 @@ import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
+import org.apache.hudi.common.table.timeline.InstantFactory;
 import org.apache.hudi.common.table.timeline.InstantFileNameFactory;
 import org.apache.hudi.common.table.timeline.InstantFileNameParser;
 import org.apache.hudi.common.util.collection.Pair;
@@ -38,6 +39,7 @@ import org.apache.hudi.storage.StoragePath;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.avro.Schema;
+import org.apache.hudi.storage.StoragePathInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,7 +123,7 @@ public class InternalSchemaCache {
         return Option.empty();
       }
       byte[] data = timeline.getInstantDetails(instants.get(0)).get();
-      HoodieCommitMetadata metadata = HoodieCommitMetadata.fromBytes(data, HoodieCommitMetadata.class);
+      HoodieCommitMetadata metadata = HoodieCommitMetadata.fromBytes(instants.get(0), data, HoodieCommitMetadata.class);
       String latestInternalSchemaStr = metadata.getMetadata(SerDeHelper.LATEST_SCHEMA);
       return SerDeHelper.fromJson(latestInternalSchemaStr);
     } catch (Exception e) {
@@ -145,7 +147,7 @@ public class InternalSchemaCache {
       byte[] data = timelineBeforeCurrentCompaction.getInstantDetails(lastInstantBeforeCurrentCompaction.get()).get();
       HoodieCommitMetadata metadata;
       try {
-        metadata = HoodieCommitMetadata.fromBytes(data, HoodieCommitMetadata.class);
+        metadata = HoodieCommitMetadata.fromBytes(lastInstantBeforeCurrentCompaction.get(), data, HoodieCommitMetadata.class);
       } catch (Exception e) {
         throw new HoodieException(String.format("cannot read metadata from commit: %s", lastInstantBeforeCurrentCompaction.get()), e);
       }
@@ -178,7 +180,8 @@ public class InternalSchemaCache {
    * @param parser       Instant File Name parser
    * @return a internalSchema.
    */
-  public static InternalSchema getInternalSchemaByVersionId(long versionId, String tablePath, HoodieStorage storage, String validCommits, InstantFileNameParser parser) {
+  public static InternalSchema getInternalSchemaByVersionId(long versionId, String tablePath, HoodieStorage storage, String validCommits,
+                                                            InstantFactory instantFactory, InstantFileNameParser parser) {
     String avroSchema = "";
     Set<String> commitSet = Arrays.stream(validCommits.split(",")).collect(Collectors.toSet());
     List<String> validateCommitList =
@@ -197,7 +200,11 @@ public class InternalSchemaCache {
         } catch (IOException e) {
           throw e;
         }
-        HoodieCommitMetadata metadata = HoodieCommitMetadata.fromBytes(data, HoodieCommitMetadata.class);
+        //TODO: HARDCODED TIMELINE OBJECT - Instant
+        short repl = 0;
+        HoodieCommitMetadata metadata = HoodieCommitMetadata.fromBytes(instantFactory.createNewInstant(
+            new StoragePathInfo(candidateCommitFile, -1, false, repl, 0L, 0L)),
+            data, HoodieCommitMetadata.class);
         String latestInternalSchemaStr = metadata.getMetadata(SerDeHelper.LATEST_SCHEMA);
         avroSchema = metadata.getMetadata(HoodieCommitMetadata.SCHEMA_KEY);
         if (latestInternalSchemaStr != null) {
@@ -231,7 +238,8 @@ public class InternalSchemaCache {
     String validCommitLists = metaClient
         .getCommitsAndCompactionTimeline().filterCompletedInstants().getInstantsAsStream().map(factory::getFileName).collect(Collectors.joining(","));
     return getInternalSchemaByVersionId(versionId, metaClient.getBasePath().toString(), metaClient.getStorage(),
-        validCommitLists, metaClient.getTimelineLayout().getInstantFileNameParser());
+        validCommitLists, metaClient.getTimelineLayout().getInstantFactory(),
+        metaClient.getTimelineLayout().getInstantFileNameParser());
   }
 }
 

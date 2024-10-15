@@ -75,13 +75,13 @@ public class MetadataConversionUtils {
         break;
       }
       case HoodieTimeline.COMMIT_ACTION: {
-        HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(instantDetails.get(), HoodieCommitMetadata.class);
+        HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(hoodieInstant, instantDetails.get(), HoodieCommitMetadata.class);
         archivedMetaWrapper.setHoodieCommitMetadata(convertCommitMetadata(commitMetadata));
         archivedMetaWrapper.setActionType(ActionType.commit.name());
         break;
       }
       case HoodieTimeline.DELTA_COMMIT_ACTION: {
-        HoodieCommitMetadata deltaCommitMetadata = HoodieCommitMetadata.fromBytes(instantDetails.get(), HoodieCommitMetadata.class);
+        HoodieCommitMetadata deltaCommitMetadata = HoodieCommitMetadata.fromBytes(hoodieInstant, instantDetails.get(), HoodieCommitMetadata.class);
         archivedMetaWrapper.setHoodieCommitMetadata(convertCommitMetadata(deltaCommitMetadata));
         archivedMetaWrapper.setActionType(ActionType.deltacommit.name());
         break;
@@ -95,7 +95,7 @@ public class MetadataConversionUtils {
           // inflight replacecommit files have the same metadata body as HoodieCommitMetadata
           // so we could re-use it without further creating an inflight extension.
           // Or inflight replacecommit files are empty under clustering circumstance
-          Option<HoodieCommitMetadata> inflightCommitMetadata = getInflightCommitMetadata(instantDetails);
+          Option<HoodieCommitMetadata> inflightCommitMetadata = getInflightCommitMetadata(hoodieInstant, instantDetails);
           if (inflightCommitMetadata.isPresent()) {
             archivedMetaWrapper.setHoodieInflightReplaceMetadata(convertCommitMetadata(inflightCommitMetadata.get()));
           }
@@ -228,12 +228,13 @@ public class MetadataConversionUtils {
     return archivedMetaWrapper;
   }
 
-  private static Option<HoodieCommitMetadata> getInflightCommitMetadata(Option<byte[]> inflightContent) throws IOException {
+  private static Option<HoodieCommitMetadata> getInflightCommitMetadata(HoodieInstant instant,
+                                                                        Option<byte[]> inflightContent) throws IOException {
     if (!inflightContent.isPresent() || inflightContent.get().length == 0) {
       // inflight files can be empty in some certain cases, e.g. when users opt in clustering
       return Option.empty();
     }
-    return Option.of(HoodieCommitMetadata.fromBytes(inflightContent.get(), HoodieCommitMetadata.class));
+    return Option.of(HoodieCommitMetadata.fromBytes(instant, inflightContent.get(), HoodieCommitMetadata.class));
   }
 
   private static Option<HoodieRequestedReplaceMetadata> getRequestedReplaceMetadata(Option<byte[]> requestedContent) throws IOException {

@@ -99,7 +99,7 @@ class ShowCommitWriteStatsProcedure() extends BaseProcedure with ProcedureBuilde
         Option(HoodieReplaceCommitMetadata.fromBytes(timeline.getInstantDetails(hoodieInstant.get).get,
           classOf[HoodieReplaceCommitMetadata]))
       } else {
-        Option(HoodieCommitMetadata.fromBytes(timeline.getInstantDetails(hoodieInstant.get).get,
+        Option(HoodieCommitMetadata.fromBytes(hoodieInstant.get, timeline.getInstantDetails(hoodieInstant.get).get,
           classOf[HoodieCommitMetadata]))
       }
     } else {

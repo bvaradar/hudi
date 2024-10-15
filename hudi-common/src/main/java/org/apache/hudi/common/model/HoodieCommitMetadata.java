@@ -19,6 +19,7 @@
 package org.apache.hudi.common.model;
 
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.util.JsonUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
@@ -495,17 +496,24 @@ public class HoodieCommitMetadata implements Serializable {
     return result;
   }
 
-  public static <T> T fromBytes(byte[] bytes, Class<T> clazz) throws IOException {
+  public static <T> T fromBytes(HoodieInstant instant, byte[] bytes, Class<T> clazz) throws IOException {
     try {
       if (bytes.length == 0) {
         return clazz.newInstance();
+      }
+      if (instant.isLegacy()) {
+        try {
+          return fromJsonString(fromUTF8Bytes(bytes), clazz);
+        } catch (Exception e) {
+          throw new IOException("unable to read legacy commit metadata for instant " + instant, e);
+        }
       }
       return fromJsonString(
           fromUTF8Bytes(
               convertCommitMetadataToJsonBytes(deserializeCommitMetadata(bytes), org.apache.hudi.avro.model.HoodieCommitMetadata.class)),
           clazz);
     } catch (Exception e) {
-      throw new IOException("unable to read commit metadata for bytes length: " + bytes.length, e);
+      throw new IOException("unable to read commit metadata for instant " + instant + " bytes length: " + bytes.length, e);
     }
   }
 

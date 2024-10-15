@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
 import static org.apache.hudi.common.testutils.HoodieTestUtils.TIMELINE_FACTORY;
 import static org.apache.hudi.testutils.Assertions.assertNoWriteErrors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -126,7 +127,7 @@ public class TestHoodieMergeHandle extends HoodieSparkClientTestHarness {
           "Expecting a single commit.");
       assertEquals(newCommitTime, timeline.lastInstant().get().getRequestTime(), "Latest commit should be 001");
       assertEquals(records.size(),
-          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime, true, INSTANT_FACTORY).count(),
           "Must contain 44 records");
 
       /**

@@ -411,7 +411,7 @@ public class TestIncrementalFSViewSync extends HoodieCommonTestHarness {
     instantsToFiles = testMultipleWriteSteps(view1, Collections.singletonList("11"), true, "11");
 
     SyncableFileSystemView view2 = getFileSystemView(createMetaClient(
-        metaClient.getStorageConf().newInstance(), metaClient.getBasePath()));
+        metaClient.getStorageConf().newInstance(), metaClient.getBasePath(), metaClient.getTableConfig().getTableVersion()));
 
     // Run 2 more ingestion on MOR table. View1 is not yet synced but View2 is
     instantsToFiles.putAll(testMultipleWriteSteps(view2, Arrays.asList("12", "13"), true, "11"));
@@ -421,7 +421,7 @@ public class TestIncrementalFSViewSync extends HoodieCommonTestHarness {
 
     view2.sync();
     SyncableFileSystemView view3 = getFileSystemView(createMetaClient(
-        metaClient.getStorageConf().newInstance(), metaClient.getBasePath()));
+        metaClient.getStorageConf().newInstance(), metaClient.getBasePath(), metaClient.getTableConfig().getTableVersion()));
     view3.sync();
     areViewsConsistent(view1, view2, PARTITIONS.size() * FILE_IDS_PER_PARTITION.size());
 
@@ -433,7 +433,7 @@ public class TestIncrementalFSViewSync extends HoodieCommonTestHarness {
     view1.sync();
     areViewsConsistent(view1, view2, PARTITIONS.size() * FILE_IDS_PER_PARTITION.size());
     SyncableFileSystemView view4 = getFileSystemView(createMetaClient(
-        metaClient.getStorageConf().newInstance(), metaClient.getBasePath()));
+        metaClient.getStorageConf().newInstance(), metaClient.getBasePath(), metaClient.getTableConfig().getTableVersion()));
     view4.sync();
 
     /*
@@ -447,7 +447,7 @@ public class TestIncrementalFSViewSync extends HoodieCommonTestHarness {
     view1.sync();
     areViewsConsistent(view1, view2, PARTITIONS.size() * FILE_IDS_PER_PARTITION.size() * 2);
     SyncableFileSystemView view5 = getFileSystemView(createMetaClient(
-        metaClient.getStorageConf().newInstance(), metaClient.getBasePath()));
+        metaClient.getStorageConf().newInstance(), metaClient.getBasePath(), metaClient.getTableConfig().getTableVersion()));
     view5.sync();
 
     /*
@@ -470,7 +470,7 @@ public class TestIncrementalFSViewSync extends HoodieCommonTestHarness {
     view1.sync();
     areViewsConsistent(view1, view2, PARTITIONS.size() * FILE_IDS_PER_PARTITION.size() * 2);
     SyncableFileSystemView view6 = getFileSystemView(createMetaClient(
-        metaClient.getStorageConf().newInstance(), metaClient.getBasePath()));
+        metaClient.getStorageConf().newInstance(), metaClient.getBasePath(), metaClient.getTableConfig().getTableVersion()));
     view6.sync();
 
     /*

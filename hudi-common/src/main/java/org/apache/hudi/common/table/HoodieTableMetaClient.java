@@ -782,7 +782,7 @@ public class HoodieTableMetaClient implements Serializable {
     private ConsistencyGuardConfig consistencyGuardConfig = ConsistencyGuardConfig.newBuilder().build();
     private FileSystemRetryConfig fileSystemRetryConfig = FileSystemRetryConfig.newBuilder().build();
     private HoodieMetaserverConfig metaserverConfig = HoodieMetaserverConfig.newBuilder().build();
-    private Option<TimelineLayoutVersion> layoutVersion = Option.of(TimelineLayoutVersion.CURR_LAYOUT_VERSION);
+    private Option<TimelineLayoutVersion> layoutVersion = Option.empty();
 
     public Builder setConf(StorageConfiguration<?> conf) {
       this.conf = conf;

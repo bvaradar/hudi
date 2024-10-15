@@ -99,6 +99,7 @@ import static org.apache.hudi.common.config.LockConfiguration.ZK_CONNECTION_TIME
 import static org.apache.hudi.common.config.LockConfiguration.ZK_CONNECT_URL_PROP_KEY;
 import static org.apache.hudi.common.config.LockConfiguration.ZK_LOCK_KEY_PROP_KEY;
 import static org.apache.hudi.common.config.LockConfiguration.ZK_SESSION_TIMEOUT_MS_PROP_KEY;
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
 import static org.apache.hudi.testutils.Assertions.assertNoWriteErrors;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -758,13 +759,13 @@ public class TestHoodieClientMultiWriter extends HoodieClientTestBase {
     String commitTimeBetweenPrevAndNew = "002";
     JavaRDD<WriteStatus> result1 = updateBatch(cfg, client1, newCommitTime, "001",
         Option.of(Arrays.asList(commitTimeBetweenPrevAndNew)), "000", numRecords, SparkRDDWriteClient::upsert, false, false,
-        numRecords, 200, 2);
+        numRecords, 200, 2, INSTANT_FACTORY);
     // Start and finish another commit while the previous writer for commit 003 is running
     newCommitTime = "004";
     SparkRDDWriteClient client2 = getHoodieWriteClient(cfg);
     JavaRDD<WriteStatus> result2 = updateBatch(cfg2, client2, newCommitTime, "001",
         Option.of(Arrays.asList(commitTimeBetweenPrevAndNew)), "000", numRecords, SparkRDDWriteClient::upsert, false, false,
-        numRecords, 200, 2);
+        numRecords, 200, 2, INSTANT_FACTORY);
     client2.commit(newCommitTime, result2);
     // Schedule and run clustering while previous writer for commit 003 is running
     SparkRDDWriteClient client3 = getHoodieWriteClient(cfg3);
@@ -1016,7 +1017,7 @@ public class TestHoodieClientMultiWriter extends HoodieClientTestBase {
                                                    String prevCommitTime, String newCommitTime, int numRecords,
                                                    String partition) throws Exception {
     JavaRDD<WriteStatus> result = insertBatch(cfg, client, newCommitTime, prevCommitTime, numRecords, SparkRDDWriteClient::insert,
-        false, false, numRecords, numRecords, 1, Option.of(partition));
+        false, false, numRecords, numRecords, 1, Option.of(partition), INSTANT_FACTORY);
     assertTrue(client.commit(newCommitTime, result), "Commit should succeed");
   }
 
@@ -1025,7 +1026,7 @@ public class TestHoodieClientMultiWriter extends HoodieClientTestBase {
                                                        boolean doCommit) throws Exception {
     // Finish first base commit
     JavaRDD<WriteStatus> result = insertFirstBatch(cfg, client, newCommitTime, prevCommitTime, numRecords, SparkRDDWriteClient::bulkInsert,
-        false, false, numRecords);
+        false, false, numRecords, INSTANT_FACTORY);
     if (doCommit) {
       assertTrue(client.commit(newCommitTime, result), "Commit should succeed");
     }
@@ -1037,7 +1038,7 @@ public class TestHoodieClientMultiWriter extends HoodieClientTestBase {
       throws Exception {
     JavaRDD<WriteStatus> result = updateBatch(cfg, client, newCommitTime, prevCommit,
         Option.of(Arrays.asList(commitTimeBetweenPrevAndNew)), "000", numRecords, SparkRDDWriteClient::upsert, false, false,
-        numRecords, 200, 2);
+        numRecords, 200, 2, INSTANT_FACTORY);
     client.commit(newCommitTime, result);
   }
 

@@ -29,6 +29,7 @@ import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
+import org.apache.hudi.common.table.timeline.InstantFactory;
 import org.apache.hudi.common.table.view.FileSystemViewManager;
 import org.apache.hudi.common.table.view.FileSystemViewStorageConfig;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
@@ -68,7 +69,6 @@ import java.util.stream.Stream;
 
 import static org.apache.hudi.common.table.timeline.InstantComparatorUtils.LESSER_THAN;
 import static org.apache.hudi.common.table.timeline.InstantComparatorUtils.compareTimestamps;
-import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
 import static org.apache.hudi.testutils.GenericRecordValidationTestUtils.readHFile;
 
 /**
@@ -148,13 +148,8 @@ public class HoodieClientTestUtils {
   }
 
   public static Dataset<Row> readCommit(String basePath, SQLContext sqlContext, HoodieTimeline commitTimeline,
-                                        String instantTime) {
-    return readCommit(basePath, sqlContext, commitTimeline, instantTime, true);
-  }
-
-  public static Dataset<Row> readCommit(String basePath, SQLContext sqlContext, HoodieTimeline commitTimeline,
-                                        String instantTime, boolean filterByCommitTime) {
-    HoodieInstant commitInstant = INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.COMMIT_ACTION, instantTime);
+                                        String instantTime, boolean filterByCommitTime, InstantFactory instantFactory) {
+    HoodieInstant commitInstant = instantFactory.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.COMMIT_ACTION, instantTime);
     if (!commitTimeline.containsInstant(commitInstant)) {
       throw new HoodieException("No commit exists at " + instantTime);
     }

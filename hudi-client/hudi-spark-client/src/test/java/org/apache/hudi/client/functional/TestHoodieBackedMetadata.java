@@ -3455,7 +3455,7 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
       metaClient = HoodieTableMetaClient.reload(metaClient);
       assertTrue(metaClient.getTableConfig().isMetadataPartitionAvailable(RECORD_INDEX), "RI is disabled");
       assertEquals(firstBatchOfrecords.size(),
-          HoodieClientTestUtils.readCommit(writeConfig.getBasePath(), engineContext.getSqlContext(), metaClient.reloadActiveTimeline(), firstCommitTime).count());
+          HoodieClientTestUtils.readCommit(writeConfig.getBasePath(), engineContext.getSqlContext(), metaClient.reloadActiveTimeline(), firstCommitTime, true, INSTANT_FACTORY).count());
 
       // Another batch of records added
       secondCommitTime = client.createNewInstantTime();
@@ -3464,7 +3464,7 @@ public class TestHoodieBackedMetadata extends TestHoodieMetadataBase {
       client.bulkInsert(jsc.parallelize(secondBatchOfrecords, 1), secondCommitTime).collect();
 
       assertEquals(secondBatchOfrecords.size(),
-          HoodieClientTestUtils.readCommit(writeConfig.getBasePath(), engineContext.getSqlContext(), metaClient.reloadActiveTimeline(), secondCommitTime).count());
+          HoodieClientTestUtils.readCommit(writeConfig.getBasePath(), engineContext.getSqlContext(), metaClient.reloadActiveTimeline(), secondCommitTime, true, INSTANT_FACTORY).count());
 
       allRecords = new ArrayList<>(firstBatchOfrecords);
       allRecords.addAll(secondBatchOfrecords);

@@ -368,7 +368,6 @@ public abstract class AbstractHoodieBaseTimeline implements HoodieTimeline {
 
   @Override
   public HoodieTimeline getTimelineOfActions(Set<String> actions) {
-    System.out.println("Factory =" + factory);
     return factory.createDefaultTimeline(getInstantsAsStream().filter(s -> actions.contains(s.getAction())),
         (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails);
   }

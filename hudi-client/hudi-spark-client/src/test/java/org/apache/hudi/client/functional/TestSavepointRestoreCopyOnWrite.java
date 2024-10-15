@@ -35,6 +35,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Objects;
 
+import static org.apache.hudi.common.testutils.HoodieTestUtils.INSTANT_FACTORY;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -61,7 +62,7 @@ public class TestSavepointRestoreCopyOnWrite extends HoodieClientTestBase {
         String newCommitTime = client.createNewInstantTime();
         // Write 4 inserts with the 2nd commit been rolled back
         insertBatch(hoodieWriteConfig, client, newCommitTime, prevInstant, numRecords, SparkRDDWriteClient::insert,
-            false, true, numRecords, numRecords * i, 1, Option.empty());
+            false, true, numRecords, numRecords * i, 1, Option.empty(), INSTANT_FACTORY);
         prevInstant = newCommitTime;
         if (i == 2) {
           // trigger savepoint
@@ -96,7 +97,7 @@ public class TestSavepointRestoreCopyOnWrite extends HoodieClientTestBase {
         String newCommitTime = client.createNewInstantTime();
         // Write 4 inserts with the 2nd commit been rolled back
         insertBatch(hoodieWriteConfig, client, newCommitTime, prevInstant, numRecords, SparkRDDWriteClient::insert,
-            false, true, numRecords, numRecords * i, 1, Option.empty());
+            false, true, numRecords, numRecords * i, 1, Option.empty(), INSTANT_FACTORY);
         prevInstant = newCommitTime;
         if (i == 2) {
           // trigger savepoint
@@ -139,7 +140,7 @@ public class TestSavepointRestoreCopyOnWrite extends HoodieClientTestBase {
         String newCommitTime = client.createNewInstantTime();
         // Write 4 inserts with the 2nd commit been rolled back
         insertBatch(hoodieWriteConfig, client, newCommitTime, prevInstant, numRecords, SparkRDDWriteClient::insert,
-            false, true, numRecords, numRecords * i, 1, Option.empty());
+            false, true, numRecords, numRecords * i, 1, Option.empty(), INSTANT_FACTORY);
         prevInstant = newCommitTime;
         if (i == 2) {
           // trigger savepoint
@@ -164,7 +165,7 @@ public class TestSavepointRestoreCopyOnWrite extends HoodieClientTestBase {
       // write another batch
       insertBatch(hoodieWriteConfig, client, client.createNewInstantTime(),
           rollbackInstant.get(), numRecords, SparkRDDWriteClient::insert,
-          false, true, numRecords, numRecords * 3, 1, Option.empty());
+          false, true, numRecords, numRecords * 3, 1, Option.empty(), INSTANT_FACTORY);
       // restore
       client.restoreToSavepoint(Objects.requireNonNull(savepointCommit, "restore commit should not be null"));
       assertRowNumberEqualsTo(20);

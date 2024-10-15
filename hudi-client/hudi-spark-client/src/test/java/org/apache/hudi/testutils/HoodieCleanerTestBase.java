@@ -136,7 +136,7 @@ public class HoodieCleanerTestBase extends HoodieClientTestBase {
         // Simulate the failure of corresponding instant in the metadata table
         HoodieTableMetaClient metadataMetaClient = HoodieTestUtils.createMetaClient(
             metaClient.getStorageConf(),
-            HoodieTableMetadata.getMetadataTableBasePath(metaClient.getBasePath()));
+            HoodieTableMetadata.getMetadataTableBasePath(metaClient.getBasePath()), metaClient.getTableConfig().getTableVersion());
         HoodieInstant deltaCommit = INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.DELTA_COMMIT_ACTION, cleanInstantTs);
         metadataMetaClient.reloadActiveTimeline().revertToInflight(deltaCommit);
       }

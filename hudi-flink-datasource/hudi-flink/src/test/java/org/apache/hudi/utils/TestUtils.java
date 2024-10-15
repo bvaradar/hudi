@@ -20,6 +20,7 @@ package org.apache.hudi.utils;
 
 import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.table.HoodieTableVersion;
 import org.apache.hudi.common.table.timeline.ActiveTimelineUtils;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
@@ -93,7 +94,7 @@ public class TestUtils {
   @Nullable
   public static String getNthCompleteInstant(StoragePath basePath, int n, String action) {
     final HoodieTableMetaClient metaClient = HoodieTestUtils.createMetaClient(
-        new HadoopStorageConfiguration(HadoopConfigurations.getHadoopConf(new Configuration())), basePath);
+        new HadoopStorageConfiguration(HadoopConfigurations.getHadoopConf(new Configuration())), basePath, HoodieTableVersion.EIGHT);
     return metaClient.getActiveTimeline()
         .filterCompletedInstants()
         .filter(instant -> action.equals(instant.getAction()))

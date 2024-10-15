@@ -75,7 +75,7 @@ public class StatsCommand {
     DecimalFormat df = new DecimalFormat("#.00");
     for (HoodieInstant instantTime : timeline.getInstants()) {
       String waf = "0";
-      HoodieCommitMetadata commit = HoodieCommitMetadata.fromBytes(activeTimeline.getInstantDetails(instantTime).get(),
+      HoodieCommitMetadata commit = HoodieCommitMetadata.fromBytes(instantTime, activeTimeline.getInstantDetails(instantTime).get(),
           HoodieCommitMetadata.class);
       if (commit.fetchTotalUpdateRecordsWritten() > 0) {
         waf = df.format((float) commit.fetchTotalRecordsWritten() / commit.fetchTotalUpdateRecordsWritten());

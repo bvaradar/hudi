@@ -258,7 +258,7 @@ public class CleanPlanner<T, I, K, O> implements Serializable {
         return Stream.concat(replaceCommitMetadata.getPartitionToReplaceFileIds().keySet().stream(), replaceCommitMetadata.getPartitionToWriteStats().keySet().stream());
       } else {
         HoodieCommitMetadata commitMetadata = HoodieCommitMetadata
-            .fromBytes(hoodieTable.getActiveTimeline().getInstantDetails(instant).get(),
+            .fromBytes(instant, hoodieTable.getActiveTimeline().getInstantDetails(instant).get(),
                 HoodieCommitMetadata.class);
         return commitMetadata.getPartitionToWriteStats().keySet().stream();
       }

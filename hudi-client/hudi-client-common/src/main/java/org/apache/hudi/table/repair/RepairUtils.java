@@ -91,7 +91,7 @@ public final class RepairUtils {
       case COMMIT_ACTION:
       case DELTA_COMMIT_ACTION:
         final HoodieCommitMetadata commitMetadata =
-            HoodieCommitMetadata.fromBytes(
+            HoodieCommitMetadata.fromBytes(instant,
                 timeline.getInstantDetails(instant).get(), HoodieCommitMetadata.class);
         return Option.of(commitMetadata.getPartitionToWriteStats().values().stream().flatMap(List::stream)
             .map(HoodieWriteStat::getPath).collect(Collectors.toSet()));

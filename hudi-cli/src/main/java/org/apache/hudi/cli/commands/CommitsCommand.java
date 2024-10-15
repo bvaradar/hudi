@@ -74,6 +74,7 @@ public class CommitsCommand {
     for (final HoodieInstant commit : commits) {
       if (timeline.getInstantDetails(commit).isPresent()) {
         final HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
+            commit,
             timeline.getInstantDetails(commit).get(),
             HoodieCommitMetadata.class);
         rows.add(new Comparable[] {commit.getRequestTime(),
@@ -113,6 +114,7 @@ public class CommitsCommand {
     for (final HoodieInstant commit : commits) {
       if (timeline.getInstantDetails(commit).isPresent()) {
         final HoodieCommitMetadata commitMetadata = HoodieCommitMetadata.fromBytes(
+            commit,
             timeline.getInstantDetails(commit).get(),
             HoodieCommitMetadata.class);
 

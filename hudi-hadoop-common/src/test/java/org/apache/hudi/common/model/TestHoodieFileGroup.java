@@ -18,7 +18,7 @@
 
 package org.apache.hudi.common.model;
 
-import org.apache.hudi.common.table.timeline.CompletionTimeQueryView;
+import org.apache.hudi.common.table.timeline.versioning.v2.CompletionTimeQueryViewV2;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.testutils.MockHoodieTimeline;
@@ -97,7 +97,7 @@ public class TestHoodieFileGroup {
         INSTANT_FACTORY.createNewInstant(HoodieInstant.State.COMPLETED, HoodieTimeline.COMMIT_ACTION, "005", "007")
     ).collect(Collectors.toList()));
 
-    CompletionTimeQueryView queryView = getMockCompletionTimeQueryView(activeTimeline);
+    CompletionTimeQueryViewV2 queryView = getMockCompletionTimeQueryView(activeTimeline);
 
     HoodieFileGroup fileGroup = new HoodieFileGroup("", "data", activeTimeline.filterCompletedAndCompactionInstants());
 
@@ -134,10 +134,10 @@ public class TestHoodieFileGroup {
         fileGroup.getBaseInstantTime(queryView, logFile2), is("005"));
   }
 
-  private CompletionTimeQueryView getMockCompletionTimeQueryView(MockHoodieTimeline activeTimeline) {
+  private CompletionTimeQueryViewV2 getMockCompletionTimeQueryView(MockHoodieTimeline activeTimeline) {
     Map<String, String> completionTimeMap = activeTimeline.filterCompletedInstants().getInstantsAsStream()
         .collect(Collectors.toMap(HoodieInstant::getRequestTime, HoodieInstant::getCompletionTime));
-    CompletionTimeQueryView queryView = mock(CompletionTimeQueryView.class);
+    CompletionTimeQueryViewV2 queryView = mock(CompletionTimeQueryViewV2.class);
     when(queryView.getCompletionTime(any(String.class), any(String.class)))
         .thenAnswer((InvocationOnMock invocationOnMock) -> {
           String instantTime = invocationOnMock.getArgument(1);

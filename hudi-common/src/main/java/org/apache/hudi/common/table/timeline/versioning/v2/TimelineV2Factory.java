@@ -20,6 +20,7 @@ package org.apache.hudi.common.table.timeline.versioning.v2;
 
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.ArchivedTimelineLoader;
+import org.apache.hudi.common.table.timeline.CompletionTimeQueryView;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
@@ -72,5 +73,15 @@ public class TimelineV2Factory extends TimelineFactory {
   @Override
   public HoodieActiveTimeline createActiveTimeline(HoodieTableMetaClient metaClient, boolean applyLayoutFilter) {
     return new ActiveTimelineV2(metaClient, applyLayoutFilter);
+  }
+
+  @Override
+  public CompletionTimeQueryView createCompletionTimeQueryView(HoodieTableMetaClient metaClient) {
+    return new CompletionTimeQueryViewV2(metaClient);
+  }
+
+  @Override
+  public CompletionTimeQueryView createCompletionTimeQueryView(HoodieTableMetaClient metaClient, String eagerInstant) {
+    return new CompletionTimeQueryViewV2(metaClient, eagerInstant);
   }
 }

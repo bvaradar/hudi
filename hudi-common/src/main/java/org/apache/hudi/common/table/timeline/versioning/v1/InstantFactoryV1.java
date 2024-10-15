@@ -81,7 +81,7 @@ public class InstantFactoryV1 implements InstantFactory {
     } else {
       throw new IllegalArgumentException("Failed to construct HoodieInstant: " + String.format(HoodieInstant.FILE_NAME_FORMAT_ERROR, fileName));
     }
-    return new HoodieInstant(state, action, timestamp, stateTransitionTime, InstantComparatorV1.COMPARATOR);
+    return new HoodieInstant(state, action, timestamp, stateTransitionTime, true, InstantComparatorV1.COMPARATOR);
   }
 
   @Override

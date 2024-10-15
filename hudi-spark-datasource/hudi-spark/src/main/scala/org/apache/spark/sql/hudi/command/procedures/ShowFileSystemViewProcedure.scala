@@ -20,7 +20,7 @@ package org.apache.spark.sql.hudi.command.procedures
 import org.apache.hudi.common.fs.FSUtils
 import org.apache.hudi.common.model.{FileSlice, HoodieLogFile}
 import org.apache.hudi.common.table.HoodieTableMetaClient
-import org.apache.hudi.common.table.timeline.{CompletionTimeQueryView, HoodieInstant, HoodieTimeline, InstantComparatorUtils}
+import org.apache.hudi.common.table.timeline.{HoodieInstant, HoodieTimeline, InstantComparatorUtils}
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView
 import org.apache.hudi.common.util
 import org.apache.hudi.exception.HoodieException
@@ -154,7 +154,7 @@ class ShowFileSystemViewProcedure(showLatest: Boolean) extends BaseProcedure wit
                                    maxInstant: String,
                                    merge: Boolean): JList[Row] = {
     var fileSliceStream: JStream[FileSlice] = JStream.empty()
-    val completionTimeQueryView = new CompletionTimeQueryView(metaClient)
+    val completionTimeQueryView =metaClient.getTimelineLayout().getTimelineFactory().createCompletionTimeQueryView(metaClient)
     if (merge) {
       partitions.foreach(p => fileSliceStream = JStream.concat(fileSliceStream, fsView.getLatestMergedFileSlicesBeforeOrOn(p, maxInstant)))
     } else {

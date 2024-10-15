@@ -29,6 +29,7 @@ import org.apache.hudi.common.util.ClusteringUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.VisibleForTesting;
 import org.apache.hudi.common.util.collection.Pair;
+import org.apache.hudi.exception.HoodieException;
 
 import javax.annotation.Nullable;
 
@@ -149,19 +150,19 @@ public class IncrementalQueryAnalyzer {
    * @return An incremental query context including the instant time range info.
    */
   public QueryContext analyze() {
-    try (CompletionTimeQueryView completionTimeQueryView = new CompletionTimeQueryView(this.metaClient)) {
-      if (completionTimeQueryView.isEmptyTable()) {
+    try (CompletionTimeQueryView CompletionTimeQueryView = metaClient.getTimelineLayout().getTimelineFactory().createCompletionTimeQueryView(this.metaClient)) {
+      if (CompletionTimeQueryView.isEmptyTable()) {
         // no dataset committed in the table
         return QueryContext.EMPTY;
       }
       HoodieTimeline filteredTimeline = getFilteredTimeline(this.metaClient);
-      List<String> instantTimeList = completionTimeQueryView.getStartTimes(filteredTimeline, startTime, endTime, rangeType);
+      List<String> instantTimeList = CompletionTimeQueryView.getStartTimes(filteredTimeline, startTime, endTime, rangeType);
       if (instantTimeList.isEmpty()) {
         // no instants completed within the give time range, returns early.
         return QueryContext.EMPTY;
       }
       // get hoodie instants
-      Pair<List<String>, List<String>> splitInstantTime = splitInstantByActiveness(instantTimeList, completionTimeQueryView);
+      Pair<List<String>, List<String>> splitInstantTime = splitInstantByActiveness(instantTimeList, CompletionTimeQueryView);
       Set<String> instantTimeSet = new HashSet<>(instantTimeList);
       List<String> archivedInstantTime = splitInstantTime.getLeft();
       List<String> activeInstantTime = splitInstantTime.getRight();
@@ -193,6 +194,8 @@ public class IncrementalQueryAnalyzer {
       String startInstant = START_COMMIT_EARLIEST.equalsIgnoreCase(startTime.orElse(null)) ? null : startTime.isEmpty() ? lastInstant : instants.get(0);
       String endInstant = endTime.isEmpty() ? null : lastInstant;
       return QueryContext.create(startInstant, endInstant, instants, archivedInstants, activeInstants, filteredTimeline, archivedReadTimeline);
+    } catch (Exception ex) {
+      throw new HoodieException(ex);
     }
   }
 

@@ -22,7 +22,8 @@ import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.util.collection.Pair;
 
 import org.apache.avro.LogicalTypes;
-import org.apache.avro.Schema;
+import org.apache.hudi.common.types.HoodieSchema;
+import org.apache.hudi.common.types.HoodieSchemaConverter;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -34,15 +35,17 @@ public abstract class DecimalLogicalTypeProcessor extends JsonFieldProcessor {
   /**
    * Check if the given schema is a valid decimal type configuration.
    */
-  protected static boolean isValidDecimalTypeConfig(Schema schema) {
-    LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) schema.getLogicalType();
+  protected static boolean isValidDecimalTypeConfig(HoodieSchema schema) {
+    // Convert to Avro Schema to access LogicalType methods
+    org.apache.avro.Schema avroSchema = HoodieSchemaConverter.toAvroSchema(schema);
+    LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) avroSchema.getLogicalType();
     // At the time when the schema is found not valid when it is parsed, the Avro Schema.parse will just silently
     // set the schema to be null instead of throwing exceptions. Correspondingly, we just check if it is null here.
     if (decimalType == null) {
       return false;
     }
     // Even though schema is validated at schema parsing phase, still validate here to be defensive.
-    decimalType.validate(schema);
+    decimalType.validate(avroSchema);
     return true;
   }
 
@@ -53,9 +56,11 @@ public abstract class DecimalLogicalTypeProcessor extends JsonFieldProcessor {
    * @return Pair object, with left as boolean indicating if the parsing was successful and right as the
    * BigDecimal value.
    */
-  protected static Pair<Boolean, BigDecimal> parseObjectToBigDecimal(Object obj, Schema schema) {
+  protected static Pair<Boolean, BigDecimal> parseObjectToBigDecimal(Object obj, HoodieSchema schema) {
     BigDecimal bigDecimal = null;
-    LogicalTypes.Decimal logicalType = (LogicalTypes.Decimal) schema.getLogicalType();
+    // Convert to Avro Schema to access LogicalType methods
+    org.apache.avro.Schema avroSchema = HoodieSchemaConverter.toAvroSchema(schema);
+    LogicalTypes.Decimal logicalType = (LogicalTypes.Decimal) avroSchema.getLogicalType();
     try {
       if (obj instanceof BigDecimal) {
         bigDecimal = ((BigDecimal) obj).setScale(logicalType.getScale(), RoundingMode.UNNECESSARY);
@@ -64,7 +69,7 @@ public abstract class DecimalLogicalTypeProcessor extends JsonFieldProcessor {
         try {
           //encoded big decimal
           bigDecimal = HoodieAvroUtils.convertBytesToBigDecimal(decodeStringToBigDecimalBytes(obj),
-              (LogicalTypes.Decimal) schema.getLogicalType());
+              (LogicalTypes.Decimal) avroSchema.getLogicalType());
         } catch (IllegalArgumentException e) {
           //no-op
         }
@@ -85,7 +90,7 @@ public abstract class DecimalLogicalTypeProcessor extends JsonFieldProcessor {
     // Allowed: 123.45, 123, 0.12
     // Disallowed: 1234 (4 digit integer while the scale has already reserved 2 digit out of the 5 digit precision)
     //             123456, 0.12345
-    LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) schema.getLogicalType();
+    LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) avroSchema.getLogicalType();
     if (bigDecimal.scale() > decimalType.getScale()
         || (bigDecimal.precision() - bigDecimal.scale()) > (decimalType.getPrecision() - decimalType.getScale())) {
       // Correspond to case

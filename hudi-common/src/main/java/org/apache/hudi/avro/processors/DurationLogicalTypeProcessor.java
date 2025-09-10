@@ -22,6 +22,8 @@ import org.apache.hudi.avro.AvroLogicalTypeEnum;
 
 import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
+import org.apache.hudi.common.types.HoodieSchema;
+import org.apache.hudi.common.types.HoodieSchemaConverter;
 
 import java.util.List;
 
@@ -48,7 +50,16 @@ public abstract class DurationLogicalTypeProcessor extends JsonFieldProcessor {
   }
 
   /**
-   * Check if the given schema is a valid decimal type configuration.
+   * Check if the given schema is a valid duration type configuration.
+   */
+  protected static boolean isValidDurationTypeConfig(HoodieSchema schema) {
+    // Convert to Avro Schema to access LogicalType methods
+    Schema avroSchema = HoodieSchemaConverter.toAvroSchema(schema);
+    return isValidDurationTypeConfig(avroSchema);
+  }
+
+  /**
+   * Check if the given schema is a valid duration type configuration.
    */
   protected static boolean isValidDurationTypeConfig(Schema schema) {
     String durationTypeName = AvroLogicalTypeEnum.DURATION.getValue();

@@ -26,6 +26,9 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
+import org.apache.hudi.common.types.HoodieSchema;
+import org.apache.hudi.common.types.HoodieSchemaConverter;
+import org.apache.hudi.common.types.HoodieField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,6 +87,23 @@ public class AvroSchemaCompatibility {
    * @param writer schema to check.
    * @return a result object identifying any compatibility errors.
    */
+  public static SchemaPairCompatibility checkReaderWriterCompatibility(final HoodieSchema reader,
+                                                                       final HoodieSchema writer,
+                                                                       boolean checkNamingOverride) {
+    // Convert to Avro schemas for internal compatibility checking
+    Schema avroReader = HoodieSchemaConverter.toAvroSchema(reader);
+    Schema avroWriter = HoodieSchemaConverter.toAvroSchema(writer);
+    return checkReaderWriterCompatibility(avroReader, avroWriter, checkNamingOverride);
+  }
+  
+  /**
+   * Validates that the provided reader schema can be used to decode avro data
+   * written with the provided writer schema.
+   *
+   * @param reader schema to check.
+   * @param writer schema to check.
+   * @return a result object identifying any compatibility errors.
+   */
   public static SchemaPairCompatibility checkReaderWriterCompatibility(final Schema reader,
                                                                        final Schema writer,
                                                                        boolean checkNamingOverride) {
@@ -112,6 +132,27 @@ public class AvroSchemaCompatibility {
   // -----------------------------------------------------------------------------------------------
 
   /**
+   * Tests the equality of two Hoodie named schemas.
+   *
+   * <p>
+   * Matching includes reader name aliases.
+   * </p>
+   *
+   * @param reader Named reader schema.
+   * @param writer Named writer schema.
+   * @return whether the names of the named schemas match or not.
+   */
+  public static boolean schemaNameEquals(final HoodieSchema reader, final HoodieSchema writer) {
+    if (objectsEqual(reader.getName(), writer.getName())) {
+      return true;
+    }
+    // Convert to Avro Schema to access aliases (not yet implemented in HoodieSchema)
+    Schema avroReader = HoodieSchemaConverter.toAvroSchema(reader);
+    Schema avroWriter = HoodieSchemaConverter.toAvroSchema(writer);
+    return schemaNameEquals(avroReader, avroWriter);
+  }
+
+  /**
    * Tests the equality of two Avro named schemas.
    *
    * <p>
@@ -128,6 +169,26 @@ public class AvroSchemaCompatibility {
     }
     // Apply reader aliases:
     return reader.getAliases().contains(writer.getFullName());
+  }
+
+  /**
+   * Identifies the writer field that corresponds to the specified reader field.
+   *
+   * <p>
+   * Matching includes reader name aliases.
+   * </p>
+   *
+   * @param writerSchema Schema of the record where to look for the writer field.
+   * @param readerField  Reader field to identify the corresponding writer field
+   *                     of.
+   * @return the writer field, if any does correspond, or None.
+   */
+  public static Field lookupWriterField(final HoodieSchema writerSchema, final HoodieField readerField) {
+    assert (writerSchema.getType() == HoodieSchema.Type.RECORD);
+    // Convert to Avro Schema and Field for compatibility checking  
+    Schema avroWriterSchema = HoodieSchemaConverter.toAvroSchema(writerSchema);
+    Field avroReaderField = HoodieSchemaConverter.toAvroField(readerField);
+    return lookupWriterField(avroWriterSchema, avroReaderField);
   }
 
   /**

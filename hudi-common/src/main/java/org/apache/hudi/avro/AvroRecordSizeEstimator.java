@@ -22,18 +22,18 @@ import org.apache.hudi.common.table.read.BufferedRecord;
 import org.apache.hudi.common.util.ObjectSizeCalculator;
 import org.apache.hudi.common.util.SizeEstimator;
 
-import org.apache.avro.Schema;
+import org.apache.hudi.common.types.HoodieSchema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificRecord;
 
 /**
  * An implementation of {@link SizeEstimator} for Avro {@link BufferedRecord}, which estimates the size of
- * Avro record excluding the internal {@link Schema}.
+ * Avro record excluding the internal {@link HoodieSchema}.
  */
 public class AvroRecordSizeEstimator implements SizeEstimator<BufferedRecord<IndexedRecord>> {
   private final long sizeOfSchema;
 
-  public AvroRecordSizeEstimator(Schema recordSchema) {
+  public AvroRecordSizeEstimator(HoodieSchema recordSchema) {
     sizeOfSchema = ObjectSizeCalculator.getObjectSize(recordSchema);
   }
 
@@ -44,7 +44,7 @@ public class AvroRecordSizeEstimator implements SizeEstimator<BufferedRecord<Ind
     if (record.getRecord() instanceof SpecificRecord) {
       return sizeOfRecord;
     }
-    // do not contain size of Avro schema as the schema is reused among records
+    // do not contain size of Hoodie schema as the schema is reused among records
     return sizeOfRecord - sizeOfSchema + 8;
   }
 }

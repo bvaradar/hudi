@@ -21,7 +21,7 @@ package org.apache.hudi.avro.processors;
 import org.apache.hudi.avro.AvroLogicalTypeEnum;
 import org.apache.hudi.common.util.collection.Pair;
 
-import org.apache.avro.Schema;
+import org.apache.hudi.common.types.HoodieSchema;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoField;
@@ -36,7 +36,7 @@ public class LocalTimestampMicroLogicalTypeProcessor extends TimeLogicalTypeProc
 
   @Override
   public Pair<Boolean, Object> convert(
-      Object value, String name, Schema schema) {
+      Object value, String name, HoodieSchema schema) {
     return convertCommon(
         new Parser.LongParser() {
           @Override

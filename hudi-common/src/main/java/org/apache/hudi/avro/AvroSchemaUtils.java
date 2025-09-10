@@ -31,6 +31,8 @@ import org.apache.hudi.internal.schema.utils.SchemaChangeUtils;
 
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaCompatibility;
+import org.apache.hudi.common.types.HoodieSchema;
+import org.apache.hudi.common.types.HoodieSchemaConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +62,13 @@ public class AvroSchemaUtils {
   }
 
   /**
+   * See {@link #isSchemaCompatible(HoodieSchema, HoodieSchema, boolean, boolean)} doc for more details
+   */
+  public static boolean isSchemaCompatible(HoodieSchema prevSchema, HoodieSchema newSchema) {
+    return isSchemaCompatible(prevSchema, newSchema, true);
+  }
+
+  /**
    * See {@link #isSchemaCompatible(Schema, Schema, boolean, boolean)} doc for more details
    */
   public static boolean isSchemaCompatible(Schema prevSchema, Schema newSchema) {
@@ -67,10 +76,35 @@ public class AvroSchemaUtils {
   }
 
   /**
+   * See {@link #isSchemaCompatible(HoodieSchema, HoodieSchema, boolean, boolean)} doc for more details
+   */
+  public static boolean isSchemaCompatible(HoodieSchema prevSchema, HoodieSchema newSchema, boolean allowProjection) {
+    return isSchemaCompatible(prevSchema, newSchema, true, allowProjection);
+  }
+
+  /**
    * See {@link #isSchemaCompatible(Schema, Schema, boolean, boolean)} doc for more details
    */
   public static boolean isSchemaCompatible(Schema prevSchema, Schema newSchema, boolean allowProjection) {
     return isSchemaCompatible(prevSchema, newSchema, true, allowProjection);
+  }
+
+  /**
+   * Establishes whether {@code newSchema} is compatible w/ {@code prevSchema}, as
+   * defined by Avro's {@link AvroSchemaCompatibility}.
+   * From avro's compatibility standpoint, prevSchema is writer schema and new schema is reader schema.
+   * {@code newSchema} is considered compatible to {@code prevSchema}, iff data written using {@code prevSchema}
+   * could be read by {@code newSchema}
+   *
+   * @param prevSchema previous instance of the schema
+   * @param newSchema new instance of the schema
+   * @param checkNaming controls whether schemas fully-qualified names should be checked
+   */
+  public static boolean isSchemaCompatible(HoodieSchema prevSchema, HoodieSchema newSchema, boolean checkNaming, boolean allowProjection) {
+    // Convert to Avro schemas for compatibility checking
+    Schema avroPrevSchema = HoodieSchemaConverter.toAvroSchema(prevSchema);
+    Schema avroNewSchema = HoodieSchemaConverter.toAvroSchema(newSchema);
+    return isSchemaCompatible(avroPrevSchema, avroNewSchema, checkNaming, allowProjection);
   }
 
   /**
@@ -100,6 +134,19 @@ public class AvroSchemaUtils {
     AvroSchemaCompatibility.SchemaPairCompatibility result =
         AvroSchemaCompatibility.checkReaderWriterCompatibility(newSchema, prevSchema, checkNaming);
     return result.getType() == AvroSchemaCompatibility.SchemaCompatibilityType.COMPATIBLE;
+  }
+
+  /**
+   * Check that each field in the prevSchema can be populated in the newSchema
+   * @param prevSchema prev schema.
+   * @param newSchema new schema
+   * @return true if prev schema is a projection of new schema.
+   */
+  public static boolean canProject(HoodieSchema prevSchema, HoodieSchema newSchema) {
+    // Convert to Avro schemas for projection checking
+    Schema avroPrevSchema = HoodieSchemaConverter.toAvroSchema(prevSchema);
+    Schema avroNewSchema = HoodieSchemaConverter.toAvroSchema(newSchema);
+    return canProject(avroPrevSchema, avroNewSchema);
   }
 
   /**

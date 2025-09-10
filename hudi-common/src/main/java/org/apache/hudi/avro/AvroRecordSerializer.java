@@ -21,7 +21,8 @@ package org.apache.hudi.avro;
 import org.apache.hudi.common.serialization.RecordSerializer;
 import org.apache.hudi.exception.HoodieException;
 
-import org.apache.avro.Schema;
+import org.apache.hudi.common.types.HoodieSchema;
+import org.apache.hudi.common.types.HoodieSchemaConverter;
 import org.apache.avro.generic.IndexedRecord;
 
 import java.io.IOException;
@@ -31,9 +32,9 @@ import java.util.function.Function;
  * An implementation of {@link RecordSerializer} for Avro {@link IndexedRecord}.
  */
 public class AvroRecordSerializer implements RecordSerializer<IndexedRecord> {
-  private final Function<Integer, Schema> schemaFunc;
+  private final Function<Integer, HoodieSchema> schemaFunc;
 
-  public AvroRecordSerializer(Function<Integer, Schema> schemaFunc) {
+  public AvroRecordSerializer(Function<Integer, HoodieSchema> schemaFunc) {
     this.schemaFunc = schemaFunc;
   }
 
@@ -45,7 +46,10 @@ public class AvroRecordSerializer implements RecordSerializer<IndexedRecord> {
   @Override
   public IndexedRecord deserialize(byte[] bytes, int schemaId) {
     try {
-      return HoodieAvroUtils.bytesToAvro(bytes, schemaFunc.apply(schemaId));
+      // Convert HoodieSchema to Avro Schema for bytesToAvro call
+      HoodieSchema hoodieSchema = schemaFunc.apply(schemaId);
+      org.apache.avro.Schema avroSchema = HoodieSchemaConverter.toAvroSchema(hoodieSchema);
+      return HoodieAvroUtils.bytesToAvro(bytes, avroSchema);
     } catch (IOException e) {
       throw new HoodieException("Failed to deserialize Avro record bytes.",e);
     }

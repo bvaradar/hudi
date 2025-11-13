@@ -189,6 +189,16 @@ public class Schema implements Serializable {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private static JsonNode convertToJsonNode(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof JsonNode) {
+      return (JsonNode) value;
+    }
+    return MAPPER.valueToTree(value);
+  }
+
   public enum Type {
     RECORD, ENUM, ARRAY, MAP, UNION, FIXED, STRING, BYTES, INT, LONG, FLOAT, DOUBLE, BOOLEAN, NULL;
 
@@ -221,6 +231,10 @@ public class Schema implements Serializable {
 
     public Field(String name, Schema schema, String doc, JsonNode defaultVal) {
       this(name, schema, doc, defaultVal, Order.ASCENDING);
+    }
+
+    public Field(String name, Schema schema, String doc, Object defaultVal) {
+      this(name, schema, doc, convertToJsonNode(defaultVal), Order.ASCENDING);
     }
 
     public Field(String name, Schema schema, String doc, JsonNode defaultVal, Order order) {
@@ -300,6 +314,7 @@ public class Schema implements Serializable {
   private final Set<String> aliases;
   private final Map<String, Object> props;
   private LogicalType logicalType;
+  private boolean isError = false;
 
   // Private constructor for builder
   private Schema(Type type, String name, String namespace, String doc,
@@ -334,7 +349,9 @@ public class Schema implements Serializable {
   }
 
   public static Schema createRecord(String name, String doc, String namespace, boolean isError) {
-    return new Schema(Type.RECORD, name, namespace, doc, new ArrayList<>(), null, null, null, null, 0);
+    Schema schema = new Schema(Type.RECORD, name, namespace, doc, new ArrayList<>(), null, null, null, null, 0);
+    schema.isError = isError;
+    return schema;
   }
 
   public static Schema createEnum(String name, String doc, String namespace, List<String> symbols) {
@@ -683,6 +700,10 @@ public class Schema implements Serializable {
     if (logicalType != null) {
       logicalType.validate(this);
     }
+  }
+
+  public boolean isError() {
+    return isError;
   }
 
   private String computeFullName(String name, String namespace) {

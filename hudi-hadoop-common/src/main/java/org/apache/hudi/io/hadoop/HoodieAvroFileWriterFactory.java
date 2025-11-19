@@ -24,6 +24,7 @@ import org.apache.hudi.common.bloom.BloomFilter;
 import org.apache.hudi.common.config.HoodieConfig;
 import org.apache.hudi.common.config.HoodieStorageConfig;
 import org.apache.hudi.common.engine.TaskContextSupplier;
+import org.apache.hudi.common.schema.HoodieSchema;
 import org.apache.hudi.common.table.HoodieTableConfig;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.ReflectionUtils;
@@ -55,7 +56,38 @@ public class HoodieAvroFileWriterFactory extends HoodieFileWriterFactory {
   public HoodieAvroFileWriterFactory(HoodieStorage storage) {
     super(storage);
   }
+  
+  @Override
+  protected HoodieFileWriter newParquetFileWriter(
+      String instantTime, StoragePath path, HoodieConfig config, HoodieSchema schema,
+      TaskContextSupplier taskContextSupplier) throws IOException {
+    return newParquetFileWriter(instantTime, path, config, schema.toAvroSchema(), taskContextSupplier);
+  }
 
+  @Override
+  protected HoodieFileWriter newParquetFileWriter(
+      OutputStream outputStream, HoodieConfig config, HoodieSchema schema) throws IOException {
+    return newParquetFileWriter(outputStream, config, schema.toAvroSchema());
+  }
+
+  @Override
+  protected HoodieFileWriter newHFileFileWriter(
+      String instantTime, StoragePath path, HoodieConfig config, HoodieSchema schema,
+      TaskContextSupplier taskContextSupplier) throws IOException {
+    return newHFileFileWriter(instantTime, path, config, schema.toAvroSchema(), taskContextSupplier);
+  }
+
+  @Override
+  protected HoodieFileWriter newOrcFileWriter(
+      String instantTime, StoragePath path, HoodieConfig config, HoodieSchema schema,
+      TaskContextSupplier taskContextSupplier) throws IOException {
+    return newOrcFileWriter(instantTime, path, config, schema.toAvroSchema(), taskContextSupplier);
+  }
+  
+  /**
+   * @deprecated Use {@link #newParquetFileWriter(String, StoragePath, HoodieConfig, HoodieSchema, TaskContextSupplier)} instead
+   */
+  @Deprecated
   @Override
   protected HoodieFileWriter newParquetFileWriter(
       String instantTime, StoragePath path, HoodieConfig config, Schema schema,
@@ -78,6 +110,11 @@ public class HoodieAvroFileWriterFactory extends HoodieFileWriterFactory {
     return new HoodieAvroParquetWriter(path, parquetConfig, instantTime, taskContextSupplier, populateMetaFields);
   }
 
+  /**
+   * @deprecated Use {@link #newParquetFileWriter(OutputStream, HoodieConfig, HoodieSchema)} instead
+   */
+  @Deprecated
+  @Override
   protected HoodieFileWriter newParquetFileWriter(
       OutputStream outputStream, HoodieConfig config, Schema schema) throws IOException {
     HoodieAvroWriteSupport writeSupport = getHoodieAvroWriteSupport(schema, config, false);
@@ -91,6 +128,11 @@ public class HoodieAvroFileWriterFactory extends HoodieFileWriterFactory {
     return new HoodieParquetStreamWriter(new FSDataOutputStream(outputStream, null), parquetConfig);
   }
 
+  /**
+   * @deprecated Use {@link #newHFileFileWriter(String, StoragePath, HoodieConfig, HoodieSchema, TaskContextSupplier)} instead
+   */
+  @Deprecated
+  @Override
   protected HoodieFileWriter newHFileFileWriter(
       String instantTime, StoragePath path, HoodieConfig config, Schema schema,
       TaskContextSupplier taskContextSupplier) throws IOException {
@@ -105,6 +147,11 @@ public class HoodieAvroFileWriterFactory extends HoodieFileWriterFactory {
     return new HoodieAvroHFileWriter(instantTime, path, hfileConfig, schema, taskContextSupplier, config.getBoolean(HoodieTableConfig.POPULATE_META_FIELDS));
   }
 
+  /**
+   * @deprecated Use {@link #newOrcFileWriter(String, StoragePath, HoodieConfig, HoodieSchema, TaskContextSupplier)} instead
+   */
+  @Deprecated
+  @Override
   protected HoodieFileWriter newOrcFileWriter(
       String instantTime, StoragePath path, HoodieConfig config, Schema schema,
       TaskContextSupplier taskContextSupplier) throws IOException {

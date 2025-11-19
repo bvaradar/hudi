@@ -21,6 +21,7 @@ package org.apache.hudi.io.storage;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.model.HoodieKey;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.schema.HoodieSchema;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -38,17 +39,53 @@ public interface HoodieAvroFileWriter extends HoodieFileWriter {
   void writeAvroWithMetadata(HoodieKey key, IndexedRecord avroRecord) throws IOException;
 
   void writeAvro(String recordKey, IndexedRecord record) throws IOException;
-
+  
+  /**
+   * Writes a record with metadata using HoodieSchema.
+   *
+   * @param key    the Hudi record key
+   * @param record the HoodieRecord to write
+   * @param schema the HoodieSchema to use for writing
+   * @param props  additional properties
+   * @throws IOException if writing fails
+   */
   @Override
-  default void writeWithMetadata(HoodieKey key, HoodieRecord record, Schema schema, Properties props) throws IOException {
-    IndexedRecord avroPayload = record.toIndexedRecord(schema, props).get().getData();
+  default void writeWithMetadata(HoodieKey key, HoodieRecord record, HoodieSchema schema, Properties props) throws IOException {
+    IndexedRecord avroPayload = record.toIndexedRecord(schema.toAvroSchema(), props).get().getData();
     writeAvroWithMetadata(key, avroPayload);
   }
 
+  /**
+   * Writes a record using HoodieSchema.
+   *
+   * @param recordKey the record key
+   * @param record    the HoodieRecord to write
+   * @param schema    the HoodieSchema to use for writing
+   * @param props     additional properties
+   * @throws IOException if writing fails
+   */
+  @Override
+  default void write(String recordKey, HoodieRecord record, HoodieSchema schema, Properties props) throws IOException {
+    IndexedRecord avroPayload = record.toIndexedRecord(schema.toAvroSchema(), props).get().getData();
+    writeAvro(recordKey, avroPayload);
+  }
+  
+  /**
+   * @deprecated Use {@link #writeWithMetadata(HoodieKey, HoodieRecord, HoodieSchema, Properties)} instead
+   */
+  @Deprecated
+  @Override
+  default void writeWithMetadata(HoodieKey key, HoodieRecord record, Schema schema, Properties props) throws IOException {
+    writeWithMetadata(key, record, HoodieSchema.fromAvroSchema(schema), props);
+  }
+
+  /**
+   * @deprecated Use {@link #write(String, HoodieRecord, HoodieSchema, Properties)} instead
+   */
+  @Deprecated
   @Override
   default void write(String recordKey, HoodieRecord record, Schema schema, Properties props) throws IOException {
-    IndexedRecord avroPayload = record.toIndexedRecord(schema, props).get().getData();
-    writeAvro(recordKey, avroPayload);
+    write(recordKey, record, HoodieSchema.fromAvroSchema(schema), props);
   }
 
   default void prepRecordWithMetadata(HoodieKey key, IndexedRecord avroRecord, String instantTime, Integer partitionId, long recordIndex, String fileName) {

@@ -20,6 +20,7 @@ package org.apache.hudi.io.storage;
 
 import org.apache.hudi.common.bloom.BloomFilter;
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.schema.HoodieSchema;
 import org.apache.hudi.common.util.collection.ClosableIterator;
 import org.apache.hudi.common.util.collection.Pair;
 
@@ -49,8 +50,43 @@ public interface HoodieFileReader<T> extends AutoCloseable {
 
   Set<Pair<String, Long>> filterRowKeys(Set<String> candidateRowKeys);
 
+  /**
+   * Returns an iterator over records using HoodieSchema for both reader and requested schemas.
+   *
+   * @param readerSchema    the schema used to read the file
+   * @param requestedSchema the schema requested by the caller (may be a projection of readerSchema)
+   * @return iterator over HoodieRecords
+   * @throws IOException if reading fails
+   */
+  default ClosableIterator<HoodieRecord<T>> getRecordIterator(HoodieSchema readerSchema, HoodieSchema requestedSchema) throws IOException {
+    return getRecordIterator(readerSchema.toAvroSchema(), requestedSchema.toAvroSchema());
+  }
+
+  /**
+   * Returns an iterator over records using HoodieSchema.
+   *
+   * @param readerSchema the schema used to read the file
+   * @return iterator over HoodieRecords
+   * @throws IOException if reading fails
+   */
+  default ClosableIterator<HoodieRecord<T>> getRecordIterator(HoodieSchema readerSchema) throws IOException {
+    return getRecordIterator(readerSchema, readerSchema);
+  }
+
+  /**
+   * Returns an iterator over records using Avro Schema for both reader and requested schemas.
+   *
+   * @deprecated Use {@link #getRecordIterator(HoodieSchema, HoodieSchema)} instead
+   */
+  @Deprecated
   ClosableIterator<HoodieRecord<T>> getRecordIterator(Schema readerSchema, Schema requestedSchema) throws IOException;
 
+  /**
+   * Returns an iterator over records using Avro Schema.
+   *
+   * @deprecated Use {@link #getRecordIterator(HoodieSchema)} instead
+   */
+  @Deprecated
   default ClosableIterator<HoodieRecord<T>> getRecordIterator(Schema readerSchema) throws IOException {
     return getRecordIterator(readerSchema, readerSchema);
   }
@@ -61,6 +97,21 @@ public interface HoodieFileReader<T> extends AutoCloseable {
 
   ClosableIterator<String> getRecordKeyIterator() throws IOException;
 
+  /**
+   * Returns the HoodieSchema of the file.
+   *
+   * @return the file's schema
+   */
+  default HoodieSchema getHoodieSchema() {
+    return HoodieSchema.fromAvroSchema(getSchema());
+  }
+
+  /**
+   * Returns the Avro schema of the file.
+   *
+   * @deprecated Use {@link #getHoodieSchema()} instead
+   */
+  @Deprecated
   Schema getSchema();
 
   void close();

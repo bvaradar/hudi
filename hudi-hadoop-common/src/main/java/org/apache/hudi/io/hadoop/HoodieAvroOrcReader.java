@@ -22,6 +22,7 @@ package org.apache.hudi.io.hadoop;
 import org.apache.hudi.avro.HoodieAvroUtils;
 import org.apache.hudi.common.bloom.BloomFilter;
 import org.apache.hudi.common.model.HoodieFileFormat;
+import org.apache.hudi.common.schema.HoodieSchema;
 import org.apache.hudi.common.util.AvroOrcUtils;
 import org.apache.hudi.common.util.FileFormatUtils;
 import org.apache.hudi.common.util.collection.ClosableIterator;
@@ -80,6 +81,21 @@ public class HoodieAvroOrcReader extends HoodieAvroFileReader {
   @Override
   public Set<Pair<String, Long>> filterRowKeys(Set candidateRowKeys) {
     return orcUtils.filterRowKeys(storage, path, candidateRowKeys);
+  }
+
+  @Override
+  public ClosableIterator<IndexedRecord> getIndexedRecordIterator(HoodieSchema readerSchema, HoodieSchema requestedSchema, Map<String, String> renamedColumns) throws IOException {
+    return null;
+  }
+
+  @Override
+  public ClosableIterator<IndexedRecord> getIndexedRecordsByKeysIterator(List<String> keys, HoodieSchema readerSchema) throws IOException {
+    return null;
+  }
+
+  @Override
+  public ClosableIterator<IndexedRecord> getIndexedRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, HoodieSchema readerSchema) throws IOException {
+    return null;
   }
 
   @Override

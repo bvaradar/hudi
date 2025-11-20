@@ -39,31 +39,13 @@ public interface HoodieAvroFileWriter extends HoodieFileWriter {
   void writeAvroWithMetadata(HoodieKey key, IndexedRecord avroRecord) throws IOException;
 
   void writeAvro(String recordKey, IndexedRecord record) throws IOException;
-  
-  /**
-   * Writes a record with metadata using HoodieSchema.
-   *
-   * @param key    the Hudi record key
-   * @param record the HoodieRecord to write
-   * @param schema the HoodieSchema to use for writing
-   * @param props  additional properties
-   * @throws IOException if writing fails
-   */
+
   @Override
   default void writeWithMetadata(HoodieKey key, HoodieRecord record, HoodieSchema schema, Properties props) throws IOException {
     IndexedRecord avroPayload = record.toIndexedRecord(schema.toAvroSchema(), props).get().getData();
     writeAvroWithMetadata(key, avroPayload);
   }
 
-  /**
-   * Writes a record using HoodieSchema.
-   *
-   * @param recordKey the record key
-   * @param record    the HoodieRecord to write
-   * @param schema    the HoodieSchema to use for writing
-   * @param props     additional properties
-   * @throws IOException if writing fails
-   */
   @Override
   default void write(String recordKey, HoodieRecord record, HoodieSchema schema, Properties props) throws IOException {
     IndexedRecord avroPayload = record.toIndexedRecord(schema.toAvroSchema(), props).get().getData();

@@ -19,6 +19,7 @@
 package org.apache.hudi.io.storage;
 
 import org.apache.hudi.common.model.HoodieRecord;
+import org.apache.hudi.common.schema.HoodieSchema;
 import org.apache.hudi.common.util.collection.ClosableIterator;
 
 import org.apache.avro.Schema;
@@ -28,29 +29,61 @@ import java.io.UnsupportedEncodingException;
 import java.util.List;
 
 public interface HoodieSeekingFileReader<T> extends HoodieFileReader<T> {
+    
+  default ClosableIterator<HoodieRecord<T>> getRecordsByKeysIterator(List<String> sortedKeys, HoodieSchema schema) throws IOException {
+    return getRecordsByKeysIterator(sortedKeys, schema.toAvroSchema());
+  }
 
+  default ClosableIterator<T> getEngineRecordsByKeysIterator(List<String> sortedKeys, HoodieSchema schema) throws IOException {
+    return getEngineRecordsByKeysIterator(sortedKeys, schema.toAvroSchema());
+  }
+
+  default ClosableIterator<HoodieRecord<T>> getRecordsByKeysIterator(List<String> sortedKeys) throws IOException {
+    return getRecordsByKeysIterator(sortedKeys, getHoodieSchema());
+  }
+
+  default ClosableIterator<HoodieRecord<T>> getRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, HoodieSchema schema) throws IOException {
+    return getRecordsByKeyPrefixIterator(sortedKeyPrefixes, schema.toAvroSchema());
+  }
+
+  default ClosableIterator<T> getEngineRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, HoodieSchema schema) throws IOException {
+    return getEngineRecordsByKeyPrefixIterator(sortedKeyPrefixes, schema.toAvroSchema());
+  }
+
+  default ClosableIterator<HoodieRecord<T>> getRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes) throws IOException {
+    return getRecordsByKeyPrefixIterator(sortedKeyPrefixes, getHoodieSchema());
+  }
+  
+  /**
+   * @deprecated Use {@link #getRecordsByKeysIterator(List, HoodieSchema)} instead
+   */
+  @Deprecated
   default ClosableIterator<HoodieRecord<T>> getRecordsByKeysIterator(List<String> sortedKeys, Schema schema) throws IOException {
     throw new UnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Use {@link #getEngineRecordsByKeysIterator(List, HoodieSchema)} instead
+   */
+  @Deprecated
   default ClosableIterator<T> getEngineRecordsByKeysIterator(List<String> sortedKeys, Schema schema) throws IOException {
     throw new UnsupportedOperationException();
   }
 
-  default ClosableIterator<HoodieRecord<T>> getRecordsByKeysIterator(List<String> sortedKeys) throws IOException {
-    return getRecordsByKeysIterator(sortedKeys, getSchema());
-  }
-
+  /**
+   * @deprecated Use {@link #getRecordsByKeyPrefixIterator(List, HoodieSchema)} instead
+   */
+  @Deprecated
   default ClosableIterator<HoodieRecord<T>> getRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, Schema schema) throws IOException {
     throw new UnsupportedEncodingException();
   }
 
+  /**
+   * @deprecated Use {@link #getEngineRecordsByKeyPrefixIterator(List, HoodieSchema)} instead
+   */
+  @Deprecated
   default ClosableIterator<T> getEngineRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, Schema schema) throws IOException {
     throw new UnsupportedEncodingException();
-  }
-
-  default ClosableIterator<HoodieRecord<T>> getRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes) throws IOException {
-    return getRecordsByKeyPrefixIterator(sortedKeyPrefixes, getSchema());
   }
 
 }

@@ -47,60 +47,20 @@ public abstract class HoodieAvroFileReader implements HoodieFileReader<IndexedRe
     return new CloseableMappingIterator<>(iterator, data -> unsafeCast(new HoodieAvroIndexedRecord(data)));
   }
 
-  /**
-   * Returns an iterator over IndexedRecords using HoodieSchema.
-   *
-   * @param readerSchema the schema used to read the file
-   * @return iterator over IndexedRecords
-   * @throws IOException if reading fails
-   */
   protected ClosableIterator<IndexedRecord> getIndexedRecordIterator(HoodieSchema readerSchema) throws IOException {
     return getIndexedRecordIterator(readerSchema, readerSchema);
   }
 
-  /**
-   * Returns an iterator over IndexedRecords using HoodieSchema.
-   *
-   * @param readerSchema    the schema used to read the file
-   * @param requestedSchema the schema requested by the caller
-   * @return iterator over IndexedRecords
-   * @throws IOException if reading fails
-   */
   public ClosableIterator<IndexedRecord> getIndexedRecordIterator(HoodieSchema readerSchema, HoodieSchema requestedSchema) throws IOException {
     return getIndexedRecordIterator(readerSchema, requestedSchema, Collections.emptyMap());
   }
 
-  /**
-   * Returns an iterator over IndexedRecords using HoodieSchema with column renaming support.
-   *
-   * @param readerSchema    the schema used to read the file
-   * @param requestedSchema the schema requested by the caller
-   * @param renamedColumns  map of old column names to new column names
-   * @return iterator over IndexedRecords
-   * @throws IOException if reading fails
-   */
   public abstract ClosableIterator<IndexedRecord> getIndexedRecordIterator(HoodieSchema readerSchema, HoodieSchema requestedSchema, Map<String, String> renamedColumns) throws IOException;
 
-  /**
-   * Returns an iterator over IndexedRecords filtered by record keys using HoodieSchema.
-   *
-   * @param keys         list of record keys to filter by
-   * @param readerSchema the schema used to read the file
-   * @return iterator over filtered IndexedRecords
-   * @throws IOException if reading fails
-   */
   public abstract ClosableIterator<IndexedRecord> getIndexedRecordsByKeysIterator(List<String> keys,
                                                                                   HoodieSchema readerSchema)
       throws IOException;
 
-  /**
-   * Returns an iterator over IndexedRecords filtered by key prefixes using HoodieSchema.
-   *
-   * @param sortedKeyPrefixes list of sorted key prefixes to filter by
-   * @param readerSchema      the schema used to read the file
-   * @return iterator over filtered IndexedRecords
-   * @throws IOException if reading fails
-   */
   public abstract ClosableIterator<IndexedRecord> getIndexedRecordsByKeyPrefixIterator(
       List<String> sortedKeyPrefixes, HoodieSchema readerSchema) throws IOException;
   

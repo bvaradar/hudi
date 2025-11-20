@@ -45,10 +45,7 @@ public class HoodieFileWriterFactory {
   public HoodieFileWriterFactory(HoodieStorage storage) {
     this.storage = storage;
   }
-  
-  /**
-   * Creates a file writer using HoodieSchema.
-   */
+
   public static <T, I, K, O> HoodieFileWriter getFileWriter(
       String instantTime, StoragePath path, HoodieStorage storage, HoodieConfig config, HoodieSchema schema,
       TaskContextSupplier taskContextSupplier, HoodieRecordType recordType) throws IOException {
@@ -57,9 +54,6 @@ public class HoodieFileWriterFactory {
     return factory.getFileWriterByFormat(extension, instantTime, path, config, schema, taskContextSupplier);
   }
 
-  /**
-   * Creates a file writer using HoodieSchema for stream output.
-   */
   public static <T, I, K, O> HoodieFileWriter getFileWriter(HoodieFileFormat format, OutputStream outputStream,
                                                             HoodieStorage storage, HoodieConfig config, HoodieSchema schema, HoodieRecordType recordType)
       throws IOException {

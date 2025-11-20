@@ -30,53 +30,19 @@ import java.util.Properties;
 
 public interface HoodieFileWriter extends AutoCloseable {
   boolean canWrite();
-  
-  /**
-   * Writes a record with metadata using HoodieSchema.
-   *
-   * @param key    the Hudi record key
-   * @param record the HoodieRecord to write
-   * @param schema the HoodieSchema to use for writing
-   * @param props  additional properties
-   * @throws IOException if writing fails
-   */
+
   default void writeWithMetadata(HoodieKey key, HoodieRecord record, HoodieSchema schema, Properties props) throws IOException {
     writeWithMetadata(key, record, schema.toAvroSchema(), props);
   }
 
-  /**
-   * Writes a record using HoodieSchema.
-   *
-   * @param recordKey the record key
-   * @param record    the HoodieRecord to write
-   * @param schema    the HoodieSchema to use for writing
-   * @param props     additional properties
-   * @throws IOException if writing fails
-   */
   default void write(String recordKey, HoodieRecord record, HoodieSchema schema, Properties props) throws IOException {
     write(recordKey, record, schema.toAvroSchema(), props);
   }
 
-  /**
-   * Writes a record with metadata using HoodieSchema with default properties.
-   *
-   * @param key    the Hudi record key
-   * @param record the HoodieRecord to write
-   * @param schema the HoodieSchema to use for writing
-   * @throws IOException if writing fails
-   */
   default void writeWithMetadata(HoodieKey key, HoodieRecord record, HoodieSchema schema) throws IOException {
     writeWithMetadata(key, record, schema, CollectionUtils.emptyProps());
   }
 
-  /**
-   * Writes a record using HoodieSchema with default properties.
-   *
-   * @param recordKey the record key
-   * @param record    the HoodieRecord to write
-   * @param schema    the HoodieSchema to use for writing
-   * @throws IOException if writing fails
-   */
   default void write(String recordKey, HoodieRecord record, HoodieSchema schema) throws IOException {
     write(recordKey, record, schema, CollectionUtils.emptyProps());
   }

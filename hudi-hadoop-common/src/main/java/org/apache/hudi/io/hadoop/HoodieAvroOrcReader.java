@@ -46,6 +46,7 @@ import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -85,17 +86,20 @@ public class HoodieAvroOrcReader extends HoodieAvroFileReader {
 
   @Override
   public ClosableIterator<IndexedRecord> getIndexedRecordIterator(HoodieSchema readerSchema, HoodieSchema requestedSchema, Map<String, String> renamedColumns) throws IOException {
-    return null;
+    //TODO to implement in follow up pr
+    throw new UnsupportedOperationException("Using HoodieSchema is not supported in ORC reader yet");
   }
 
   @Override
   public ClosableIterator<IndexedRecord> getIndexedRecordsByKeysIterator(List<String> keys, HoodieSchema readerSchema) throws IOException {
-    return null;
+    //TODO to implement in follow up pr
+    throw new UnsupportedEncodingException("Using HoodieSchema is not supported in ORC reader yet");
   }
 
   @Override
   public ClosableIterator<IndexedRecord> getIndexedRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, HoodieSchema readerSchema) throws IOException {
-    return null;
+    //TODO to implement in follow up pr
+    throw new UnsupportedEncodingException("Using HoodieSchema is not supported in ORC reader yet");
   }
 
   @Override

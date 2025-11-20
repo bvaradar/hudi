@@ -50,6 +50,7 @@ import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.schema.AvroSchemaRepair;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -105,17 +106,20 @@ public class HoodieAvroParquetReader extends HoodieAvroFileReader {
 
   @Override
   public ClosableIterator<IndexedRecord> getIndexedRecordIterator(HoodieSchema readerSchema, HoodieSchema requestedSchema, Map<String, String> renamedColumns) throws IOException {
-    return null;
+    //TODO in follow up pr
+    throw new UnsupportedEncodingException("parquet reader does not support HoodieSchema yet");
   }
 
   @Override
   public ClosableIterator<IndexedRecord> getIndexedRecordsByKeysIterator(List<String> keys, HoodieSchema readerSchema) throws IOException {
-    return null;
+    //TODO in follow up pr
+    throw new UnsupportedEncodingException("parquet reader does not support HoodieSchema yet");
   }
 
   @Override
   public ClosableIterator<IndexedRecord> getIndexedRecordsByKeyPrefixIterator(List<String> sortedKeyPrefixes, HoodieSchema readerSchema) throws IOException {
-    return null;
+    //TODO in follow up pr
+    throw new UnsupportedEncodingException("parquet reader does not support HoodieSchema yet");
   }
 
   @Override

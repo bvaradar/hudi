@@ -87,23 +87,30 @@ public class HoodieHiveSyncClient extends HoodieSyncClient {
     // Support JDBC, HiveQL and metastore based implementations for backwards compatibility. Future users should
     // disable jdbc and depend on metastore client for all hive registrations
     try {
-      this.client = IMetaStoreClientUtil.getMSC(config.getHiveConf());
       if (!StringUtils.isNullOrEmpty(config.getString(HIVE_SYNC_MODE))) {
         HiveSyncMode syncMode = HiveSyncMode.of(config.getString(HIVE_SYNC_MODE));
-        switch (syncMode) {
-          case HMS:
-            ddlExecutor = new HMSDDLExecutor(config, this.client);
-            break;
-          case HIVEQL:
-            ddlExecutor = new HiveQueryDDLExecutor(config, this.client);
-            break;
-          case JDBC:
-            ddlExecutor = new JDBCExecutor(config);
-            break;
-          default:
-            throw new HoodieHiveSyncException("Invalid sync mode given " + config.getString(HIVE_SYNC_MODE));
+        if (syncMode == HiveSyncMode.REST) {
+          // REST mode doesn't need HMS client
+          ddlExecutor = new org.apache.hudi.hive.ddl.RESTCatalogDDLExecutor(config);
+        } else {
+          // All other modes need HMS client
+          this.client = IMetaStoreClientUtil.getMSC(config.getHiveConf());
+          switch (syncMode) {
+            case HMS:
+              ddlExecutor = new HMSDDLExecutor(config, this.client);
+              break;
+            case HIVEQL:
+              ddlExecutor = new HiveQueryDDLExecutor(config, this.client);
+              break;
+            case JDBC:
+              ddlExecutor = new JDBCExecutor(config);
+              break;
+            default:
+              throw new HoodieHiveSyncException("Invalid sync mode given " + config.getString(HIVE_SYNC_MODE));
+          }
         }
       } else {
+        this.client = IMetaStoreClientUtil.getMSC(config.getHiveConf());
         ddlExecutor = config.getBoolean(HIVE_USE_JDBC) ? new JDBCExecutor(config) : new HiveQueryDDLExecutor(config, this.client);
       }
     } catch (Exception e) {

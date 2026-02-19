@@ -150,4 +150,74 @@ public class HiveSyncConfigHolder {
       .markAdvanced()
       .sinceVersion("0.13.0")
       .withDocumentation("Hive table synchronization strategy. Available option: RO, RT, ALL.");
+
+  // REST Catalog Sync Configuration
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_URL = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_url")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("REST Catalog endpoint URL for Hive 4.2+ (e.g., http://localhost:9083/api/v1). "
+          + "Required when sync mode is REST.");
+  public static final ConfigProperty<Integer> HIVE_SYNC_REST_CATALOG_TIMEOUT_SECONDS = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_timeout_seconds")
+      .defaultValue(30)
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("HTTP connection and read timeout in seconds for REST Catalog operations.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_AUTH_TYPE = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_auth_type")
+      .defaultValue("NONE")
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("Authentication type for REST Catalog. Available options: NONE, BEARER, BASIC, OAUTH2.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_AUTH_TOKEN = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_auth_token")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("Bearer token for REST Catalog authentication. Required when auth type is BEARER.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_AUTH_USERNAME = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_auth_username")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("Username for REST Catalog authentication. Required when auth type is BASIC or OAUTH2.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_AUTH_PASSWORD = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_auth_password")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("Password for REST Catalog authentication. Required when auth type is BASIC or OAUTH2.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_OAUTH2_TOKEN_URL = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_oauth2_token_url")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("OAuth2 token endpoint URL. Required when auth type is OAUTH2.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_OAUTH2_CLIENT_ID = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_oauth2_client_id")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("OAuth2 client ID. Required when auth type is OAUTH2.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_OAUTH2_CLIENT_SECRET = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_oauth2_client_secret")
+      .noDefaultValue()
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("OAuth2 client secret. Required when auth type is OAUTH2.");
+  public static final ConfigProperty<String> HIVE_SYNC_REST_CATALOG_OAUTH2_SCOPE = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_oauth2_scope")
+      .defaultValue("catalog")
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("OAuth2 scope for token requests. Default is 'catalog'.");
+  public static final ConfigProperty<Boolean> HIVE_SYNC_REST_CATALOG_HTTPS_INSECURE = ConfigProperty
+      .key("hoodie.datasource.hive_sync.rest_catalog_https_insecure")
+      .defaultValue(false)
+      .markAdvanced()
+      .sinceVersion("1.2.0")
+      .withDocumentation("Allow insecure HTTPS connections (skip certificate validation) for REST Catalog. "
+          + "Only use in development/testing environments.");
 }

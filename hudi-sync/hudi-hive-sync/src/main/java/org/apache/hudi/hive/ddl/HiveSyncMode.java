@@ -37,7 +37,11 @@ public enum HiveSyncMode {
   /**
    * The JDBC mode use hive jdbc to sync metadata.
    */
-  JDBC;
+  JDBC,
+  /**
+   * The REST mode uses REST Catalog HTTP API to sync metadata (compatible with Hive 4.2+).
+   */
+  REST;
 
   public static HiveSyncMode of(String syncMode) {
     return HiveSyncMode.valueOf(syncMode.toUpperCase(Locale.ROOT));
